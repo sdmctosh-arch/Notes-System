@@ -275,9 +275,12 @@ $EnrichmentResponseSchema = @{
                 required = @('title','url')
             }
         }
-        # Covers both recipe and media_info; every property optional so a
-        # kind that doesn't use structured data can omit the field entirely.
-        structured = @{
+        # Separate, narrowly-scoped fields per kind rather than one shared
+        # object - an irrelevant property left in reach of the model (a
+        # recipe response holding a "year" field, say) has been observed
+        # inviting run-on, self-narrating filler instead of staying empty.
+        # Kept apart, there's nothing irrelevant to fill.
+        recipe = @{
             type       = 'object'
             properties = [ordered]@{
                 name               = @{ type = 'string' }
@@ -290,9 +293,19 @@ $EnrichmentResponseSchema = @{
                 totalTime          = @{ type = 'string' }
                 recipeCategory     = @{ type = 'string' }
                 recipeCuisine      = @{ type = 'string' }
-                title              = @{ type = 'string' }
-                year               = @{ type = 'string' }
-                media_type         = @{ type = 'string' }
+            }
+            # Without this, the model has been observed including the
+            # object but skipping the two fields that are the entire point
+            # of a recipe conversion, while still filling in optional
+            # metadata like yield and cuisine.
+            required = @('name','recipeIngredient','recipeInstructions')
+        }
+        media = @{
+            type       = 'object'
+            properties = [ordered]@{
+                title      = @{ type = 'string' }
+                year       = @{ type = 'string' }
+                media_type = @{ type = 'string' }
             }
         }
     }
@@ -404,10 +417,13 @@ function Invoke-Enrichment {
         # On Gemini 3 models this budget is shared between thinking and
         # output tokens. Left unset, a long conversion (a full recipe) can
         # exhaust it on thinking alone and come back status=incomplete with
-        # no usable text. Confirmed against the live API: a citation-heavy
-        # structured answer used ~8.7k combined tokens, so 8000 was already
-        # too tight; 16000 leaves real headroom.
-        generation_config  = @{ max_output_tokens = 16000 }
+        # no usable text. Confirmed against the live API: a dense, long
+        # recipe occasionally runs past 22k output tokens even with the
+        # required-field and detail-brevity fixes in place - 32000 leaves
+        # real headroom. A run that still hits the cap comes back
+        # enrich_failed rather than corrupt data; the capture itself is
+        # never lost.
+        generation_config  = @{ max_output_tokens = 32000 }
         response_format    = [ordered]@{
             type      = 'text'
             mime_type = 'application/json'
@@ -460,13 +476,25 @@ function Invoke-Enrichment {
 
     $parsed = $textPart.text.Trim() | ConvertFrom-Json
 
+    # Guard that doesn't depend on model behaviour: structured only comes
+    # from the field matching the declared kind. Whatever landed in the
+    # other field - the model does not reliably leave it empty - is
+    # discarded rather than stored.
+    $structured = $null
+    if ($parsed.kind -eq 'recipe' -and $parsed.PSObject.Properties.Name -contains 'recipe') {
+        $structured = $parsed.recipe
+    }
+    elseif ($parsed.kind -eq 'media_info' -and $parsed.PSObject.Properties.Name -contains 'media') {
+        $structured = $parsed.media
+    }
+
     return [ordered]@{
         kind        = $parsed.kind
         summary     = $parsed.summary
         detail      = $parsed.detail
         citations   = @($parsed.citations)
         embed       = Get-EmbedFromUrl -Url $url
-        structured  = if ($parsed.PSObject.Properties.Name -contains 'structured') { $parsed.structured } else { $null }
+        structured  = $structured
         model       = $EnrichModel
         enriched_at = (Get-Date).ToString('o')
     }

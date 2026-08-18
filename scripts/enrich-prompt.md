@@ -17,12 +17,12 @@ from category:
 - **page_summary** — the item points at a URL whose content is the point.
   Read the URL with the URL tool and summarize it.
 - **media_info** — the item names a title to watch, play, or listen to.
-  Confirm the correct title, release year, and type. Put
-  `{ "title": ..., "year": ..., "media_type": ... }` in `structured`. `year`
-  is the single first-aired or release year as a plain string, e.g. `"2009"`
-  — never a range, and never anything else in that field.
+  Confirm the correct title, release year, and type. Fill the `media` field.
+  `year` is the single first-aired or release year as a plain string, e.g.
+  `"2009"` — never a range, and never anything else in that field.
 - **recipe** — the item is a recipe or a link to one. Convert it to a
-  schema.org/Recipe object in `structured`. See "Recipe conversion" below.
+  schema.org/Recipe object in the `recipe` field. See "Recipe conversion"
+  below.
 - **guide** — the item is a `project`, `idea`, `unclassified`, or anything
   else that isn't really a question but would benefit from background: prior
   art, a relevant how-to, options to consider, a starting point. Research it
@@ -50,10 +50,17 @@ an empty `citations` array — do not backfill citations from memory.
 
 - `summary` — one or two sentences. What the user needs to know first.
 - `detail` — the fuller answer, in Markdown. Lists and short paragraphs, not
-  an essay. For `guide`, this is the brief itself.
+  an essay. For `guide`, this is the brief itself. For `recipe`, this is
+  notes about the conversion only (anything you changed, clarified, or
+  couldn't fit into the structured fields) - never the ingredients or steps
+  again, those live in `recipe` and restating them here roughly doubles the
+  output for no reason. An empty or near-empty `detail` is the normal,
+  correct result for a clean recipe conversion.
 - `citations` — `[{ "title": ..., "url": ... }]`, or `[]`.
-- `structured` — populated only for `recipe` and `media_info` (see above).
-  Leave the field out entirely for `answer`, `page_summary`, and `guide`.
+- `recipe` — only when `kind` is `recipe`. Leave it out for every other kind,
+  including `media_info`.
+- `media` — only when `kind` is `media_info`. Leave it out for every other
+  kind, including `recipe`.
 
 ## Recipe conversion
 
