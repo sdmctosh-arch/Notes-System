@@ -5,12 +5,14 @@
 
 .DESCRIPTION
     Pipeline per capture:
-      _Inbox -> processing -> classify (Gemini) -> route -> Archive\Captures
+      _Inbox -> processing -> classify (Gemini) -> enrich (Gemini) -> queue -> Archive\Captures
 
     Routing:
-      recipe / project / idea                        -> markdown file in the vault
-      lookup / todo / media / grocery / reference    -> JSON row in queue\pending
-      unclassified                                   -> vault Unclassified\ for review
+      Every item becomes one JSON row in queue\pending. todo and grocery are
+      tasks and are queued as-is. Every other category (lookup, project,
+      recipe, idea, media, reference, unclassified) is also enriched before
+      it is queued - answered, summarized, converted, or researched,
+      whichever fits the item.
 
     Failure handling:
       Transient (HTTP 429/5xx, network) -> file stays in processing\ and is
@@ -30,16 +32,18 @@
         text is filed, never the model's shortened body.
 
 .EXAMPLE
-    .\Invoke-NoteProcessor.ps1 -Model gemini-3.1-flash-lite -DryRun
-    .\Invoke-NoteProcessor.ps1 -Model gemini-3.1-flash-lite
+    .\Invoke-NoteProcessor.ps1 -Model gemini-3.1-flash-lite -EnrichModel gemini-3.5-flash -DryRun
+    .\Invoke-NoteProcessor.ps1 -Model gemini-3.1-flash-lite -EnrichModel gemini-3.5-flash
 #>
 [CmdletBinding()]
 param(
-    [string]$VaultRoot  = 'E:\notes',
-    [string]$SystemRoot = 'E:\notes-system',
-    [string]$PromptPath = 'E:\notes-system\scripts\classify-prompt.md',
-    [string]$KeyPath    = 'E:\notes-system\gemini.key.xml',
+    [string]$VaultRoot       = 'E:\notes',
+    [string]$SystemRoot      = 'E:\notes-system',
+    [string]$PromptPath      = 'E:\notes-system\scripts\classify-prompt.md',
+    [string]$EnrichPromptPath = 'E:\notes-system\scripts\enrich-prompt.md',
+    [string]$KeyPath         = 'E:\notes-system\gemini.key.xml',
     [Parameter(Mandatory)][string]$Model,
+    [string]$EnrichModel     = 'gemini-3.5-flash',
     [int]$BodyLimit      = 800,
     [int]$ThinkingBudget = -1,
     [int]$MaxAttempts    = 5,
@@ -54,17 +58,18 @@ $ProcessorVersion = '0.2'
 $SettleSeconds    = 15
 $StaleLockMinutes = 30
 
+# Sent on Interactions API calls. The API's May 2026 schema migration made
+# this a no-op after the June 8 2026 sunset, but it costs nothing to send and
+# documents which schema this script was written against.
+$InteractionsApiRevision = '2026-05-20'
+
 # --- Routing policy ----------------------------------------------------------
 
-$NoteCategories  = @('recipe','project','idea')
-$QueueCategories = @('lookup','todo','media','grocery','reference')
-
-$CategoryFolder = @{
-    recipe       = 'Recipes'
-    project      = 'Projects'
-    idea         = 'Ideas'
-    unclassified = 'Unclassified'
-}
+# todo and grocery are tasks: acted on, not researched. Every other category
+# gets enrichment before it is queued.
+$TaskCategories = @('todo','grocery')
+$AllCategories  = @('lookup','todo','project','recipe','idea',
+                     'media','reference','grocery','unclassified')
 
 # Phase 4 fills these. Until then every proposed automation is recorded and
 # discarded - the model has been observed proposing candidates on notes about
@@ -170,19 +175,6 @@ function New-UniquePath {
     }
 }
 
-function ConvertTo-SafeFileName {
-    param(
-        [Parameter(Mandatory)][AllowEmptyString()][string]$Text,
-        [string]$Fallback = 'note'
-    )
-    $clean = $Text
-    foreach ($c in [IO.Path]::GetInvalidFileNameChars()) { $clean = $clean.Replace($c, ' ') }
-    $clean = ($clean -replace '\s+', ' ').Trim(' ', '.')
-    if ($clean.Length -gt 80) { $clean = $clean.Substring(0, 80).Trim() }
-    if ([string]::IsNullOrWhiteSpace($clean)) { return $Fallback }
-    return $clean
-}
-
 function Test-CleanUrl {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
 
@@ -266,8 +258,53 @@ $ResponseSchema = @{
     required = @('items')
 }
 
+$EnrichmentResponseSchema = @{
+    type       = 'object'
+    properties = [ordered]@{
+        kind      = @{ type = 'string'; enum = @('answer','page_summary','media_info','recipe','guide') }
+        summary   = @{ type = 'string' }
+        detail    = @{ type = 'string' }
+        citations = @{
+            type  = 'array'
+            items = @{
+                type       = 'object'
+                properties = [ordered]@{
+                    title = @{ type = 'string' }
+                    url   = @{ type = 'string' }
+                }
+                required = @('title','url')
+            }
+        }
+        # Covers both recipe and media_info; every property optional so a
+        # kind that doesn't use structured data can omit the field entirely.
+        structured = @{
+            type       = 'object'
+            properties = [ordered]@{
+                name               = @{ type = 'string' }
+                recipeIngredient   = @{ type = 'array'; items = @{ type = 'string' } }
+                recipeInstructions = @{ type = 'array'; items = @{ type = 'string' } }
+                description        = @{ type = 'string' }
+                recipeYield        = @{ type = 'string' }
+                prepTime           = @{ type = 'string' }
+                cookTime           = @{ type = 'string' }
+                totalTime          = @{ type = 'string' }
+                recipeCategory     = @{ type = 'string' }
+                recipeCuisine      = @{ type = 'string' }
+                title              = @{ type = 'string' }
+                year               = @{ type = 'string' }
+                media_type         = @{ type = 'string' }
+            }
+        }
+    }
+    required = @('kind','summary','detail','citations')
+}
+
 class TransientApiError : Exception {
     TransientApiError([string]$m) : base($m) {}
+}
+
+class EnrichmentApiError : Exception {
+    EnrichmentApiError([string]$m) : base($m) {}
 }
 
 function Invoke-Classifier {
@@ -333,62 +370,120 @@ function Invoke-Classifier {
     return ($text.Trim() | ConvertFrom-Json)
 }
 
-# --- Routing -----------------------------------------------------------------
+# --- Enrichment ----------------------------------------------------------------
 
-function Write-VaultNote {
+function Get-EmbedFromUrl {
+    param([AllowNull()][string]$Url)
+
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $null }
+    $m = [regex]::Match($Url, '(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([\w-]{11})')
+    if (-not $m.Success) { return $null }
+    return @{ type = 'youtube'; video_id = $m.Groups[1].Value }
+}
+
+function Invoke-Enrichment {
     param(
         [Parameter(Mandatory)]$Item,
-        [Parameter(Mandatory)][string]$CaptureId,
-        [Parameter(Mandatory)][datetime]$Stamp,
-        [Parameter(Mandatory)][AllowEmptyString()][string]$OriginalBody,
-        [Parameter(Mandatory)][bool]$WasTruncated
+        [Parameter(Mandatory)][string]$NoteId
     )
 
-    $category = $Item.category
-    $folder   = if ($CategoryFolder.ContainsKey($category)) { $CategoryFolder[$category] } else { 'Unclassified' }
-    $dir      = Join-Path $VaultRoot $folder
-    if (-not $DryRun -and -not (Test-Path -LiteralPath $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    $url = Get-ItemField $Item 'url'
+    $lines = @(
+        "Category: $($Item.category)"
+        "Title: $(Get-ItemField $Item 'title')"
+        "Body: $(Get-ItemField $Item 'body')"
+    )
+    if ($url -and (Test-CleanUrl $url)) { $lines += "URL: $url" }
+
+    $payload = [ordered]@{
+        model              = $EnrichModel
+        input              = ($lines -join "`n")
+        system_instruction = $script:EnrichSystemPrompt
+        tools              = @(@{ type = 'google_search' }, @{ type = 'url_context' })
+        store              = $false
+        # On Gemini 3 models this budget is shared between thinking and
+        # output tokens. Left unset, a long conversion (a full recipe) can
+        # exhaust it on thinking alone and come back status=incomplete with
+        # no usable text. Confirmed against the live API: a citation-heavy
+        # structured answer used ~8.7k combined tokens, so 8000 was already
+        # too tight; 16000 leaves real headroom.
+        generation_config  = @{ max_output_tokens = 16000 }
+        response_format    = [ordered]@{
+            type      = 'text'
+            mime_type = 'application/json'
+            schema    = $EnrichmentResponseSchema
+        }
+    } | ConvertTo-Json -Depth 20
+
+    $uri = 'https://generativelanguage.googleapis.com/v1beta/interactions'
+
+    $attempt = 0
+    $resp = $null
+    while ($true) {
+        try {
+            $resp = Invoke-RestMethod -Uri $uri -Method Post `
+                -Headers @{
+                    'x-goog-api-key' = $script:ApiKey
+                    'content-type'   = 'application/json'
+                    'Api-Revision'   = $InteractionsApiRevision
+                } `
+                -Body $payload
+            break
+        }
+        catch {
+            $code = $null
+            if ($_.Exception.PSObject.Properties.Name -contains 'Response' -and $_.Exception.Response) {
+                $code = [int]$_.Exception.Response.StatusCode
+            }
+            $attempt++
+            if (($null -eq $code -or $code -eq 429 -or $code -ge 500) -and $attempt -le 3) {
+                $wait = [math]::Min(45, [math]::Pow(2, $attempt) * 3) + (Get-Random -Minimum 0 -Maximum 3)
+                Write-Log "  enrichment HTTP $code - waiting $([int]$wait)s (attempt $attempt/3)" 'WARN'
+                Start-Sleep -Seconds $wait
+                continue
+            }
+            throw [EnrichmentApiError]::new("HTTP $code : $($_.Exception.Message)")
+        }
     }
 
-    # A truncated capture means the model only saw the first $BodyLimit chars.
-    # Filing its body would silently discard most of a recipe.
-    $content = if ($WasTruncated) { $OriginalBody } else { (Get-ItemField $Item 'body') ?? $OriginalBody }
-
-    $title = Get-ItemField $Item 'title'
-    $url   = Get-ItemField $Item 'url'
-    $amb   = Get-ItemField $Item 'ambiguity_note'
-
-    $fm = @('---')
-    $fm += "title: `"$($title -replace '"','\"')`""
-    $fm += "category: $category"
-    $fm += "captured: $($Stamp.ToString('o'))"
-    $fm += "capture_id: $CaptureId"
-    if ($url -and (Test-CleanUrl $url)) { $fm += "url: $url" }
-    if ($WasTruncated) { $fm += 'body_source: original' }
-    $fm += "processor_version: $ProcessorVersion"
-    $fm += '---'
-    $fm += ''
-    if ($amb) { $fm += "> [!note] Classifier note`n> $amb"; $fm += '' }
-    $fm += $content
-
-    $fileName = (ConvertTo-SafeFileName -Text $title -Fallback $CaptureId) + '.md'
-    $target   = New-UniquePath -Directory $dir -FileName $fileName
-
-    if ($DryRun) {
-        Write-Log "  DRYRUN note -> $folder\$([IO.Path]::GetFileName($target))"
-    } else {
-        Set-Content -LiteralPath $target -Value ($fm -join "`n") -Encoding utf8
+    if ($resp.PSObject.Properties.Name -contains 'status' -and $resp.status -and $resp.status -ne 'completed') {
+        throw [EnrichmentApiError]::new("interaction status=$($resp.status)")
     }
-    return $target
+
+    $modelStep = $resp.steps | Where-Object { $_.type -eq 'model_output' } | Select-Object -Last 1
+    if ($null -eq $modelStep) { throw [EnrichmentApiError]::new('No model_output step returned') }
+
+    $textPart = $modelStep.content | Where-Object { $_.type -eq 'text' } | Select-Object -First 1
+    if ($null -eq $textPart -or [string]::IsNullOrWhiteSpace($textPart.text)) {
+        throw [EnrichmentApiError]::new('model_output step has no text content')
+    }
+
+    $parsed = $textPart.text.Trim() | ConvertFrom-Json
+
+    return [ordered]@{
+        kind        = $parsed.kind
+        summary     = $parsed.summary
+        detail      = $parsed.detail
+        citations   = @($parsed.citations)
+        embed       = Get-EmbedFromUrl -Url $url
+        structured  = if ($parsed.PSObject.Properties.Name -contains 'structured') { $parsed.structured } else { $null }
+        model       = $EnrichModel
+        enriched_at = (Get-Date).ToString('o')
+    }
 }
+
+# --- Routing -----------------------------------------------------------------
 
 function Write-QueueRow {
     param(
         [Parameter(Mandatory)]$Item,
         [Parameter(Mandatory)][string]$CaptureId,
         [Parameter(Mandatory)][datetime]$Stamp,
-        [Parameter(Mandatory)][int]$Index
+        [Parameter(Mandatory)][int]$Index,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$OriginalBody,
+        [Parameter(Mandatory)][bool]$WasTruncated,
+        $Enrichment,
+        [bool]$EnrichFailed
     )
 
     $category = $Item.category
@@ -408,12 +503,19 @@ function Write-QueueRow {
         Write-Log "  automation '$proposed' proposed on [$category] - recorded, not actionable" 'WARN'
     }
 
+    # A truncated capture means the model only saw the first $BodyLimit chars.
+    # Queuing its body would silently discard most of a long item (a recipe,
+    # most often).
+    $body = if ($WasTruncated) { $OriginalBody } else { (Get-ItemField $Item 'body') ?? $OriginalBody }
+
+    $status = if ($EnrichFailed) { 'enrich_failed' } elseif ($Enrichment) { 'enriched' } else { 'pending' }
+
     $row = [ordered]@{
         queue_id            = "{0}-{1:d2}" -f $CaptureId, $Index
         capture_id          = $CaptureId
         category            = $category
         title               = Get-ItemField $Item 'title'
-        body                = Get-ItemField $Item 'body'
+        body                = $body
         url                 = if ($url -and (Test-CleanUrl $url)) { $url } else { $null }
         url_rejected        = if ($url -and -not (Test-CleanUrl $url)) { $url } else { $null }
         media_type          = Get-ItemField $Item 'media_type'
@@ -423,15 +525,16 @@ function Write-QueueRow {
         ambiguity_note      = Get-ItemField $Item 'ambiguity_note'
         captured            = $Stamp.ToString('o')
         created             = (Get-Date).ToString('o')
-        status              = 'pending'
+        status              = $status
+        enrichment          = $Enrichment
         processor_version   = $ProcessorVersion
     }
 
     $target = Join-Path $QueuePending ("{0}.json" -f $row.queue_id)
     if ($DryRun) {
-        Write-Log "  DRYRUN queue -> pending\$($row.queue_id).json [$category] $($row.title)"
+        Write-Log "  DRYRUN queue -> pending\$($row.queue_id).json [$category] $($row.title) status=$status"
     } else {
-        Set-Content -LiteralPath $target -Value ($row | ConvertTo-Json -Depth 6) -Encoding utf8
+        Set-Content -LiteralPath $target -Value ($row | ConvertTo-Json -Depth 10) -Encoding utf8
     }
     return $target
 }
@@ -443,11 +546,25 @@ foreach ($dir in @($InboxDir, $ArchiveDir, $ProcessingDir, $FailedDir,
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
 
-foreach ($p in @($PromptPath, $KeyPath)) {
+foreach ($p in @($PromptPath, $EnrichPromptPath)) {
     if (-not (Test-Path -LiteralPath $p)) { throw "Missing required file: $p" }
 }
-$script:SystemPrompt = Get-Content -LiteralPath $PromptPath -Raw
-$script:ApiKey = [Net.NetworkCredential]::new('', (Import-Clixml -LiteralPath $KeyPath)).Password
+$script:SystemPrompt       = Get-Content -LiteralPath $PromptPath -Raw
+$script:EnrichSystemPrompt = Get-Content -LiteralPath $EnrichPromptPath -Raw
+
+# The DPAPI file is the production path (Rule 4: secrets in DPAPI files or
+# environment variables). The env var exists so this script can also run
+# somewhere DPAPI can't decrypt - anywhere off the machine and account that
+# created the key file, including a Linux sandbox.
+if ($env:GEMINI_API_KEY) {
+    $script:ApiKey = $env:GEMINI_API_KEY
+}
+elseif (Test-Path -LiteralPath $KeyPath) {
+    $script:ApiKey = [Net.NetworkCredential]::new('', (Import-Clixml -LiteralPath $KeyPath)).Password
+}
+else {
+    throw "No API key available. Set `$env:GEMINI_API_KEY or provide -KeyPath $KeyPath."
+}
 
 if (Test-Path -LiteralPath $LockPath) {
     $lockAge = (Get-Date) - (Get-Item -LiteralPath $LockPath).LastWriteTime
@@ -460,7 +577,7 @@ if (Test-Path -LiteralPath $LockPath) {
 }
 if (-not $DryRun) { Set-Content -LiteralPath $LockPath -Value $PID -Encoding utf8 }
 
-$stats = @{ Seen=0; Filed=0; Queued=0; Duplicate=0; Skipped=0; Failed=0; Deferred=0; NotSettled=0 }
+$stats = @{ Seen=0; Queued=0; EnrichFailed=0; Duplicate=0; Skipped=0; Failed=0; Deferred=0; NotSettled=0 }
 
 try {
     Write-Log "Processor $ProcessorVersion starting. Model=$Model DryRun=$DryRun"
@@ -575,27 +692,34 @@ try {
             $items  = @($result.items)
             if ($items.Count -eq 0) { throw 'Classifier returned no items.' }
 
-            $filed = 0; $queued = 0
+            $queued = 0; $enrichFailedCount = 0
             for ($i = 0; $i -lt $items.Count; $i++) {
                 $item = $items[$i]
                 $cat  = $item.category
 
-                if ($cat -in $QueueCategories) {
-                    [void](Write-QueueRow -Item $item -CaptureId $id -Stamp $stamp -Index ($i + 1))
-                    $queued++
-                }
-                elseif ($cat -in $NoteCategories -or $cat -eq 'unclassified') {
-                    [void](Write-VaultNote -Item $item -CaptureId $id -Stamp $stamp `
-                            -OriginalBody $body -WasTruncated $truncated)
-                    $filed++
-                }
-                else {
-                    Write-Log "  unknown category '$cat' - filing as unclassified." 'WARN'
+                if ($cat -notin $AllCategories) {
+                    Write-Log "  unknown category '$cat' - queuing as unclassified." 'WARN'
                     $item.category = 'unclassified'
-                    [void](Write-VaultNote -Item $item -CaptureId $id -Stamp $stamp `
-                            -OriginalBody $body -WasTruncated $truncated)
-                    $filed++
+                    $cat = 'unclassified'
                 }
+
+                $enrichment   = $null
+                $enrichFailed = $false
+                if ($cat -notin $TaskCategories) {
+                    try {
+                        $enrichment = Invoke-Enrichment -Item $item -NoteId $id
+                    }
+                    catch {
+                        Write-Log "  enrichment failed for item $($i + 1) [$cat] - $($_.Exception.Message)" 'WARN'
+                        $enrichFailed = $true
+                        $enrichFailedCount++
+                    }
+                }
+
+                [void](Write-QueueRow -Item $item -CaptureId $id -Stamp $stamp -Index ($i + 1) `
+                        -OriginalBody $body -WasTruncated $truncated `
+                        -Enrichment $enrichment -EnrichFailed $enrichFailed)
+                $queued++
             }
 
             $archived = New-UniquePath -Directory $ArchiveDir -FileName $file.Name
@@ -614,7 +738,6 @@ try {
                 body_chars        = $body.Length
                 truncated         = $truncated
                 item_count        = $items.Count
-                filed             = $filed
                 queued            = $queued
                 categories        = @($items | ForEach-Object { $_.category })
                 status            = 'processed'
@@ -624,8 +747,8 @@ try {
             }
 
             [void]$state.Ids.Add($id); [void]$state.Hashes.Add($hash)
-            $stats.Filed += $filed; $stats.Queued += $queued
-            Write-Log "$($file.Name): $($items.Count) item(s) - $filed filed, $queued queued"
+            $stats.Queued += $queued; $stats.EnrichFailed += $enrichFailedCount
+            Write-Log "$($file.Name): $($items.Count) item(s) queued, $enrichFailedCount enrichment failure(s)"
         }
         catch [TransientApiError] {
             # Leave it in processing\ and try again next run.
@@ -667,8 +790,8 @@ try {
         if ($DelaySeconds -gt 0) { Start-Sleep -Seconds $DelaySeconds }
     }
 
-    Write-Log ("Done. seen={0} filed={1} queued={2} duplicate={3} skipped={4} deferred={5} failed={6} not-settled={7}" -f `
-        $stats.Seen, $stats.Filed, $stats.Queued, $stats.Duplicate, $stats.Skipped,
+    Write-Log ("Done. seen={0} queued={1} enrich-failed={2} duplicate={3} skipped={4} deferred={5} failed={6} not-settled={7}" -f `
+        $stats.Seen, $stats.Queued, $stats.EnrichFailed, $stats.Duplicate, $stats.Skipped,
         $stats.Deferred, $stats.Failed, $stats.NotSettled)
 }
 finally {
