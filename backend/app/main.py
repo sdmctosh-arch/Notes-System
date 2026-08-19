@@ -10,13 +10,18 @@ app = FastAPI(title="Notes System API")
 
 _MOVE_STATUS = {"archive": "archived", "dismiss": "dismissed", "keep": "filed"}
 
+# Namespaced under /api because in production FastAPI also serves the built
+# React app from this same origin (PROJECT.md 10.2) - the SPA has its own
+# page at /items/{id}, and a bare /items/{id} API route would collide with
+# it on direct navigation or a page reload.
 
-@app.get("/items", response_model=list[QueueItem])
+
+@app.get("/api/items", response_model=list[QueueItem])
 def list_items(status: str | None = None, category: str | None = None):
     return storage.list_pending_items(status=status, category=category)
 
 
-@app.get("/items/{queue_id}", response_model=QueueItem)
+@app.get("/api/items/{queue_id}", response_model=QueueItem)
 def get_item(queue_id: str):
     try:
         return storage.get_item(queue_id)
@@ -24,7 +29,7 @@ def get_item(queue_id: str):
         raise HTTPException(status_code=404, detail=f"No item {queue_id}")
 
 
-@app.patch("/items/{queue_id}", response_model=QueueItem)
+@app.patch("/api/items/{queue_id}", response_model=QueueItem)
 def update_item(queue_id: str, update: ItemUpdate):
     try:
         return storage.update_item(
@@ -34,7 +39,7 @@ def update_item(queue_id: str, update: ItemUpdate):
         raise HTTPException(status_code=404, detail=f"No item {queue_id}")
 
 
-@app.post("/items/{queue_id}/move", response_model=QueueItem)
+@app.post("/api/items/{queue_id}/move", response_model=QueueItem)
 def move_item(queue_id: str, move: MoveRequest):
     new_status = _MOVE_STATUS.get(move.action)
     if new_status is None:
