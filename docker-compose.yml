@@ -1,0 +1,17 @@
+services:
+  notes-interface:
+    build: .
+    ports:
+      # 8100, not the 8080 in PROJECT.md 10.2 - overridden for this
+      # deployment.
+      - "8100:8100"
+    environment:
+      QUEUE_DIR: /data/queue
+      VAULT_DIR: /data/vault
+      PASSWORD_HASH: ${PASSWORD_HASH}
+      SECRET_KEY: ${SECRET_KEY}
+    volumes:
+      - E:\notes-system\queue:/data/queue
+      - E:\notes:/data/vault
+      - E:\notes\Archive\Captures:/data/archive:ro
+    restart: unless-stopped

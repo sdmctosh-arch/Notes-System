@@ -8,6 +8,7 @@ import YouTubeEmbed from '../components/YouTubeEmbed';
 import ActionBar from '../components/ActionBar';
 import { categoryColors, categoryLabel } from '../categories';
 import { useDarkMode } from '../theme-hook';
+import Login from '../components/Login';
 
 function timeAgo(iso) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -147,9 +148,10 @@ export default function ItemDetail() {
   const [error, setError] = useState(null);
   const dark = useDarkMode();
 
-  useEffect(() => {
+  const load = () => {
     let cancelled = false;
     setItem(null);
+    setError(null);
     api
       .getItem(id)
       .then((data) => !cancelled && setItem(data))
@@ -157,8 +159,13 @@ export default function ItemDetail() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  };
 
+  useEffect(load, [id]);
+
+  if (error?.status === 401) {
+    return <Login onSuccess={load} />;
+  }
   if (error) {
     return (
       <div className="p-6 text-sm" style={{ color: 'var(--color-dismiss-text)' }}>

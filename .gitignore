@@ -24,6 +24,10 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# Built frontend copied into the image at Docker build time (Dockerfile) -
+# never present outside a build, never committed.
+backend/static/
+
 # OS
 Thumbs.db
 .DS_Store

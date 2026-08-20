@@ -1,33 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../api';
 import FilterChips from '../components/FilterChips';
 import InboxRow from '../components/InboxRow';
 import EmptyState from '../components/EmptyState';
 import ThemeToggle from '../components/ThemeToggle';
+import Login from '../components/Login';
 
 export default function Inbox() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
   const [category, setCategory] = useState('all');
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(() => {
+    setError(null);
     api
       .listItems()
       .then((data) => {
-        if (cancelled) return;
         // The backend lists queue/pending sorted by filename, which is
         // capture id order, not display order - Inbox is newest-first
         // per PROJECT.md 10.4, so sort here rather than in the API.
         const sorted = [...data].sort((a, b) => new Date(b.captured) - new Date(a.captured));
         setItems(sorted);
       })
-      .catch((e) => !cancelled && setError(e));
-    return () => {
-      cancelled = true;
-    };
+      .catch(setError);
   }, []);
 
+  useEffect(load, [load]);
+
+  if (error?.status === 401) {
+    return <Login onSuccess={load} />;
+  }
   if (error) {
     return (
       <div className="p-6 text-sm" style={{ color: 'var(--color-dismiss-text)' }}>
