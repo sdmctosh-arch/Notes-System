@@ -4,6 +4,33 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-20 - Fix PROJECT.md drift, build Lists and Capture views (#8)
+
+### Summary
+
+Reviewed PROJECT.md and CLAUDE.md against the actual code for incorrectness and inconsistency. CLAUDE.md held up; PROJECT.md had drifted significantly since it was written pre-Stage-1.
+
+**Doc fixes:**
+- Status headers and the "current state" table said things like "to build" and "not started" for the processor and interface, both live in production for weeks. That tracking job now belongs to CHANGELOG.md, which stays accurate because it's generated from real merges — stripped the stage-by-stage build plan (§12) and state table (§14) down to a pointer at it, keeping only Stage 6 (still unbuilt).
+- The queue item example (§5.3) had a `capture_path` field that was never implemented (confirmed via `models.py`'s own comment) and was missing `url_rejected`, a real field.
+- The enrichment `kind` values (§5.4) listed `none` (not real — unenriched items have `enrichment: null`, not a kind) and omitted `guide`, which is real.
+- The enrichment-by-category table (§9.2) said project/idea/unclassified get no enrichment — actually all three get a `guide` pass; only todo/grocery skip enrichment. This was the biggest factual gap.
+- Port 8100 vs. the spec'd 8080 (the compose file already explained this; PROJECT.md's own value never got updated).
+- §9.3 said "do not build the Tandoor integration now" — it exists now, built at direct request in an earlier session.
+
+**Two previously-unbuilt views from §10.4, built as part of this review:**
+- **Lists** — one view each for grocery/todo/media. Grocery and todo are checklists — checking an item off calls the existing dismiss action and removes it from the list. Media links each row to its item card instead, since media (unlike todo/grocery) actually gets enriched and has real content worth seeing. No new backend needed — reuses `GET /api/items?category=` and the existing move endpoint.
+- **Capture** — a new `GET /api/capture/{capture_id}` reads the original, unmodified Markdown off the `/data/archive` read-only mount (which existed in `docker-compose.yml` since Stage 4 but nothing ever read from it), guarded against path traversal the same way `vault.read_vault_note` is. A "View original capture" link on item detail (both active and archived items) opens it; content renders as plain text, not through react-markdown, since raw dictation isn't meant to be interpreted as Markdown syntax.
+
+Re-enrich (§10.5) remains spec'd and unbuilt — noted honestly in the doc rather than left silently wrong.
+
+### Test plan
+
+- [x] Backend: `pytest` — 58 passed (up from 46: +12 capture unit + API integration tests)
+- [x] Frontend: `npm test` (Vitest) — 42 passed (up from 34: +10 Lists/CaptureView/ItemDetail tests)
+- [x] Frontend production build (`vite build`) still succeeds
+- [x] Playwright pass against a sandboxed backend: grocery checklist check-off persists across reload, todo/media tabs both load, media row links to its item card, capture view renders real seeded content with no frontmatter leak, back navigation returns correctly, and a missing capture 404s
+
 ## 2026-08-20 - Archive/Vault views, search, Tandoor push, and a batch of small UX fixes (#6)
 
 ### Summary
