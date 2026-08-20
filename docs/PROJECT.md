@@ -445,6 +445,45 @@ Then set the task's Program to `wscript.exe` and Arguments to
 `"E:\notes-system\scripts\Run-NoteProcessor-Hidden.vbs"`, keeping the same
 Account and "Run only when user is logged on" setting as above.
 
+### 8.4b Keeping the interface container up to date
+
+`scripts\Update-Container.ps1` checks `origin/main` on a schedule and, only
+when there is actually something new, pulls and runs
+`docker compose up -d --build`. It never touches a working tree with
+uncommitted changes, and every failure - including Docker not running -
+lands in `E:\notes-system\logs\update-container-<date>.log` rather than
+being silent.
+
+Test it with `-DryRun` first: it fetches and reports whether an update is
+available without pulling or rebuilding anything.
+
+| Item | Value |
+|---|---|
+| Program | `C:\Program Files\PowerShell\7\pwsh.exe` |
+| Arguments | `-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Users\Steven\Documents\GitHub\Notes-System\scripts\Update-Container.ps1"` |
+| Repeat | Every hour (or whatever cadence fits) |
+| "Run whether user is logged on or not" | Checked |
+
+Unlike the note processor, this script never touches the DPAPI key - git and
+docker don't need it - so the task can run whether anyone is logged in or
+not, which is the point: it keeps working even when nobody's at the machine
+to run `git pull` by hand. Docker Desktop's own "Start Docker Desktop when
+you sign in" setting only starts it on login, though - if the goal is
+updates landing even across a reboot with nobody logging in at all, Docker
+Desktop also needs its own "Start Docker Desktop when you log in" replaced
+with a service-level autostart, which is a Docker Desktop setting, not
+something this script controls.
+
+This was tested against a sandboxed clone with a controlled, deliberately
+out-of-date `origin/main` (not the real repo or `E:\notes-system`) - the
+git side (up-to-date detection, the actual pull, the dirty-tree skip, the
+lock file and its stale-lock takeover) all confirmed correct. The
+`docker compose up -d --build` step itself could only be exercised as far
+as confirming it fails loudly and cleanly when Docker isn't reachable, since
+there was no Docker daemon available to build against in that sandbox -
+verify the full pull-and-rebuild path once for real on the deployment
+machine.
+
 ### 8.5 PowerShell rules
 
 These errors occurred during development. Do not repeat them.
