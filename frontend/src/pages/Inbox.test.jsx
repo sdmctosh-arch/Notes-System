@@ -17,6 +17,7 @@ function item(overrides) {
     body: 'Lookup if Pier 66 has laundry.',
     captured: '2026-08-11T13:30:10-04:00',
     enrichment: null,
+    important: false,
     ...overrides,
   };
 }
@@ -89,6 +90,22 @@ describe('Inbox', () => {
     await screen.findByText('Fresh item');
     expect(screen.getByText('New')).toBeInTheDocument();
     expect(screen.getByText('Stale')).toBeInTheDocument();
+  });
+
+  it('shows the important star next to a flagged item, not next to an unflagged one', async () => {
+    api.listItems.mockResolvedValueOnce([
+      item({ queue_id: 'flagged', title: 'Flagged item', important: true }),
+      item({ queue_id: 'plain', title: 'Plain item', important: false }),
+    ]);
+
+    render(
+      <MemoryRouter>
+        <Inbox />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('Flagged item');
+    expect(screen.getAllByLabelText('Important')).toHaveLength(1);
   });
 
   it('shows the login form on a 401', async () => {

@@ -124,6 +124,18 @@ def add_chat_messages(queue_id: str, messages: list[ChatMessage]) -> QueueItem:
     return updated
 
 
+def set_important(queue_id: str, important: bool) -> QueueItem:
+    # Pending-only, the same as chat - once an item is archived/filed/
+    # dismissed the interface treats it as read-only.
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        raise ItemNotFoundError(queue_id)
+    item = _read_item(path)
+    updated = item.model_copy(update={"important": important})
+    _write_item_atomic(path, updated)
+    return updated
+
+
 def move_to_archived(queue_id: str, new_status: str) -> QueueItem:
     # 10.6: the interface moves files from queue\pending\ to
     # queue\archived\ only - so a move is only valid starting from pending.

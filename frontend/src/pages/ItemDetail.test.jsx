@@ -6,7 +6,7 @@ import ItemDetail from './ItemDetail';
 import { api } from '../api';
 
 vi.mock('../api', () => ({
-  api: { getItem: vi.fn(), updateItem: vi.fn() },
+  api: { getItem: vi.fn(), updateItem: vi.fn(), setImportant: vi.fn() },
 }));
 
 function baseItem(overrides) {
@@ -20,6 +20,7 @@ function baseItem(overrides) {
     status: 'enriched',
     enrichment: null,
     chat: [],
+    important: false,
     ...overrides,
   };
 }
@@ -163,6 +164,42 @@ describe('ItemDetail', () => {
   });
 
   const hoursAgo = (h) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+
+  it('flags an item as important and shows the filled star once it reloads', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    api.setImportant.mockResolvedValueOnce(
+      baseItem({ important: true, enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    const user = userEvent.setup();
+
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByLabelText('Important')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Flag as important' }));
+
+    expect(api.setImportant).toHaveBeenCalledWith('abc123', true);
+    await waitFor(() => expect(screen.getByLabelText('Important')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Unflag as important' })).toBeInTheDocument();
+  });
+
+  it('does not show the important toggle on an archived item, but still shows the star if flagged', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        status: 'filed',
+        important: true,
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByRole('button', { name: /flag as important/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Important')).toBeInTheDocument();
+  });
 
   it('shows a "New" label for an item captured within 24 hours, and none once it ages past a week', async () => {
     api.getItem.mockResolvedValueOnce(

@@ -691,6 +691,7 @@ and Vault notes (title, body, enrichment text).
 | Dismiss | Set `status` to `dismissed`. Move the queue file to `archived\` |
 | Change category | Change `category`. Keep `status` as it is |
 | Edit title or body | Change the field. Do not change the original capture |
+| Flag as important | Not in the original plan. Toggle `important` on the item. Pending only, like every other mutation - once archived/filed/dismissed the flag can still be seen but no longer changed |
 | Re-enrich | Write a request file. The processor enriches the item on the next run |
 
 The interface must not call the Gemini API. Re-enrichment is a request to the

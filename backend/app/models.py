@@ -72,6 +72,10 @@ class QueueItem(BaseModel):
     # chat endpoint (app/gemini_chat.py). Defaults to [] so every queue file
     # written before this feature existed still loads.
     chat: list[ChatMessage] = []
+    # Interface-only, like chat - the user's own "remember this one" marker.
+    # Defaults to False so every queue file written before this feature
+    # existed still loads.
+    important: bool = False
 
 
 class ItemUpdate(BaseModel):
@@ -90,6 +94,10 @@ class MoveRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+
+
+class ImportantRequest(BaseModel):
+    important: bool
 
 
 class VaultNoteSummary(BaseModel):

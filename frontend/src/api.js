@@ -43,4 +43,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
+  setImportant: (id, important) =>
+    request(`/api/items/${encodeURIComponent(id)}/important`, {
+      method: 'PATCH',
+      body: JSON.stringify({ important }),
+    }),
 };
