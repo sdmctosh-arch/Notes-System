@@ -10,6 +10,10 @@ services:
       VAULT_DIR: /data/vault
       PASSWORD_HASH: ${PASSWORD_HASH}
       SECRET_KEY: ${SECRET_KEY}
+      # Optional - see .env.example. Leave unset in .env to skip the
+      # Tandoor push entirely.
+      TANDOOR_URL: ${TANDOOR_URL:-}
+      TANDOOR_API_TOKEN: ${TANDOOR_API_TOKEN:-}
     volumes:
       - E:\notes-system\queue:/data/queue
       - E:\notes:/data/vault
