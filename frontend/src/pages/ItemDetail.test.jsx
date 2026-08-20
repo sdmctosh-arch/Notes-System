@@ -162,6 +162,47 @@ describe('ItemDetail', () => {
     expect(screen.getByPlaceholderText('Ask a follow-up…')).toBeInTheDocument();
   });
 
+  const hoursAgo = (h) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+
+  it('shows a "New" label for an item captured within 24 hours, and none once it ages past a week', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        captured: hoursAgo(6),
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByText('New')).toBeInTheDocument();
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+  });
+
+  it('shows a "Stale" label for an item captured more than 7 days ago', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        captured: hoursAgo(24 * 10),
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByText('Stale')).toBeInTheDocument();
+    expect(screen.queryByText('New')).not.toBeInTheDocument();
+  });
+
+  it('does not show a "Stale" label on an archived item, even if captured long ago', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        status: 'filed',
+        captured: hoursAgo(24 * 10),
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+  });
+
   it('links to the original capture using capture_id, not queue_id', async () => {
     api.getItem.mockResolvedValueOnce(
       baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),

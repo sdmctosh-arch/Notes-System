@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import CategoryBadge from './CategoryBadge';
+import ItemLabel from './ItemLabel';
 import { categoryLabel } from '../categories';
+import { isNewItem, isStaleItem } from '../itemLabels';
 
 function timeAgo(iso) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -14,6 +16,7 @@ function timeAgo(iso) {
 
 export default function InboxRow({ item }) {
   const preview = item.enrichment?.summary || item.body || '';
+  const label = isNewItem(item) ? 'new' : isStaleItem(item) ? 'stale' : null;
   return (
     <Link
       to={`/items/${encodeURIComponent(item.queue_id)}`}
@@ -26,8 +29,11 @@ export default function InboxRow({ item }) {
     >
       <CategoryBadge category={item.category} />
       <div className="min-w-0 grow">
-        <div className="font-serif font-semibold text-base leading-tight" style={{ color: 'var(--color-text-primary)' }}>
-          {item.title || item.capture_id}
+        <div className="flex items-start justify-between gap-2">
+          <div className="font-serif font-semibold text-base leading-tight" style={{ color: 'var(--color-text-primary)' }}>
+            {item.title || item.capture_id}
+          </div>
+          {label && <ItemLabel kind={label} />}
         </div>
         <div
           className="text-[13px] mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"

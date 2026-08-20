@@ -628,6 +628,14 @@ Bind mounts:
 **Inbox.** The default view. Shows items with status `pending` or `enriched`.
 Sort by capture time, newest first. Filter by category.
 
+Not in the original plan: a "New" or "Stale" label on the item card and item
+detail header, computed client-side from `captured` (not `created` - see
+5.3) so it agrees with the "time ago" text next to it. "New" for the first
+24 hours after capture, "Stale" once 7 days have passed with no decision -
+the label just stops rendering once the item is filed, archived, or
+dismissed, since it leaves the pending queue at that point anyway. No new
+backend field; see `frontend/src/itemLabels.js`.
+
 **Item card.** The content changes with the category.
 
 | Category | Card content |

@@ -73,6 +73,24 @@ describe('Inbox', () => {
     expect(await screen.findByText("You're all caught up")).toBeInTheDocument();
   });
 
+  it('labels a recently captured item "New" and a week-old one "Stale"', async () => {
+    const hoursAgo = (h) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+    api.listItems.mockResolvedValueOnce([
+      item({ queue_id: 'fresh', title: 'Fresh item', captured: hoursAgo(6) }),
+      item({ queue_id: 'old', title: 'Old item', captured: hoursAgo(24 * 10) }),
+    ]);
+
+    render(
+      <MemoryRouter>
+        <Inbox />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('Fresh item');
+    expect(screen.getByText('New')).toBeInTheDocument();
+    expect(screen.getByText('Stale')).toBeInTheDocument();
+  });
+
   it('shows the login form on a 401', async () => {
     const err = new Error('Unauthorized');
     err.status = 401;

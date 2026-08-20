@@ -7,8 +7,10 @@ import Citations from '../components/Citations';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import ActionBar from '../components/ActionBar';
 import ChatPanel from '../components/ChatPanel';
+import ItemLabel from '../components/ItemLabel';
 import Prose from '../components/Prose';
 import { categoryColors, categoryLabel } from '../categories';
+import { isNewItem, isStaleItem } from '../itemLabels';
 import { useDarkMode } from '../theme-hook';
 import Login from '../components/Login';
 
@@ -323,9 +325,12 @@ export default function ItemDetail() {
       </div>
       <div className="px-5 pb-4 flex items-start gap-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />
-        <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: colors.label }}>
-            {categoryLabel(item.category)}
+        <div className="min-w-0 grow">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: colors.label }}>
+              {categoryLabel(item.category)}
+            </div>
+            {!isArchived && (isNewItem(item) ? <ItemLabel kind="new" /> : isStaleItem(item) ? <ItemLabel kind="stale" /> : null)}
           </div>
           <div className="font-serif font-semibold text-xl leading-tight mt-0.5" style={{ color: 'var(--color-text-primary)' }}>
             {item.title || item.capture_id}
