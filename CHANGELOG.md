@@ -4,6 +4,24 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-20 - Add live follow-up chat on item detail (#10)
+
+### Summary
+
+- Adds a live "Follow up" chat panel to the item detail page, using the note (title/body/enrichment) as context so the user can continue the conversation after enrichment.
+- This is the one deliberate exception to the "interface never calls Gemini" rule (PROJECT.md 3.3): a live conversation needs a synchronous reply, which the processor's every-5-minute file-based pipeline can't give. Classification and enrichment stay processor-only and file-based, unchanged.
+- New backend module `backend/app/gemini_chat.py` calls the Gemini Interactions API directly, mirroring the request/response shape already verified in `Invoke-Enrichment` (`scripts/Invoke-NoteProcessor-v2.ps1`) rather than guessing at it: same endpoint, headers, and response parsing, but with a full conversation transcript as `input` and no `response_format` (chat replies are plain text, not structured).
+- Chat history persists into the item's own JSON as a new `chat` field (same atomic-write pattern used everywhere else - no new persistence mechanism, no database).
+- Chat is pending-only, matching the existing move/edit restriction - archived and dismissed items are read-only, so the chat panel doesn't render for them.
+- Requires a new `GEMINI_API_KEY` env var for the interface container. The DPAPI-encrypted `gemini.key.xml` used by the Windows processor only decrypts for one Windows user on one machine, so the Linux container needs its own plaintext key, handled the same way as `PASSWORD_HASH`/`TANDOOR_API_TOKEN` (documented in `.env.example`, wired through `docker-compose.yml`). Leaving it unset fails chat requests with a clear error and doesn't affect anything else.
+- `docs/PROJECT.md` updated in this PR per CLAUDE.md rule 8: 3.3 documents the exception, 10.4 documents the Chat view, 14's summary is updated.
+
+### Test plan
+
+- Backend: 68 tests passing, including 4 new `test_gemini_chat.py` tests (missing key, request shape/headers/transcript/context, incomplete status, network error) and 6 new `test_api.py` tests covering the `/api/items/{id}/chat` endpoint (append, accumulate across messages, 404 for missing/archived items, 502 on Gemini failure, auth requirement).
+- Frontend: 47 tests passing, including 4 new `ChatPanel.test.jsx` tests (renders history, sends and applies the response, disables Send for whitespace-only input, shows error and preserves the draft on failure) plus updates to `ItemDetail.test.jsx` confirming the panel is hidden for archived items and shown for active ones. Production `vite build` is clean.
+- End-to-end: verified against a running sandboxed stack with a local stub standing in for the real Gemini endpoint (via a new `GEMINI_INTERACTIONS_URL` override, default unchanged) - login, open an item, send a follow-up, confirm the reply renders, reload and confirm the chat persisted, archive the item, confirm the chat panel disappears. Manually inspected the stub's captured request to confirm the real auth header, `Api-Revision`, `tools`, `store: false`, and injected note context/transcript are all correct.
+
 ## 2026-08-20 - Require PROJECT.md updates per PR; fix Node version pin (#9)
 
 ### Summary
