@@ -4,6 +4,19 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-20 - Require PROJECT.md updates per PR; fix Node version pin (#9)
+
+### Summary
+
+- **CLAUDE.md rule 8**: require `docs/PROJECT.md` to be updated in the same PR as the change it affects, so it stops drifting the way it did before. Noted explicitly that this can't be automated the way CHANGELOG.md is — appending a PR summary needs no understanding of the change, but correcting PROJECT.md's specific claims does.
+- **Dockerfile fix**: bumped the frontend build stage's Node image from `22.11.0` to `22.22.2`. The old pin (from an earlier commit) was older than several dependencies' declared engine requirements (`@asamuzakjp/css-color`, `@vitejs/plugin-react`, `whatwg-url`, and others need `>=22.13.0` or `>=24.0.0`), producing `EBADENGINE` warnings on every `npm ci`. Harmless on its own since npm doesn't block installs over engine mismatches by default, but no reason to leave it wrong. `22.22.2` is a version already proven to work against this exact `package.json`.
+
+### Test plan
+
+- [x] `docker compose config` still validates cleanly with the new image tag
+- [x] Confirmed no other stale references to the old Node version elsewhere in the repo
+- [x] Backend/frontend test suites unaffected by either change (doc-only + base image bump)
+
 ## 2026-08-20 - Fix PROJECT.md drift, build Lists and Capture views (#8)
 
 ### Summary
