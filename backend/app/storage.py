@@ -48,6 +48,24 @@ def list_pending_items(
     return items
 
 
+def list_archived_items(
+    status: str | None = None, category: str | None = None
+) -> list[QueueItem]:
+    # Everything under queue/archived/ already has status archived, filed,
+    # or dismissed - move_to_archived is the only writer into this
+    # directory (PROJECT.md 10.6) - but the status filter stays for
+    # symmetry with list_pending_items and to let a caller narrow to just
+    # one of the three outcomes.
+    if not QUEUE_ARCHIVED_DIR.is_dir():
+        return []
+    items = [_read_item(p) for p in sorted(QUEUE_ARCHIVED_DIR.glob("*.json"))]
+    if status:
+        items = [i for i in items if i.status == status]
+    if category:
+        items = [i for i in items if i.category == category]
+    return items
+
+
 def _find_item_path(queue_id: str) -> Path | None:
     for directory in (QUEUE_PENDING_DIR, QUEUE_ARCHIVED_DIR):
         candidate = directory / f"{queue_id}.json"

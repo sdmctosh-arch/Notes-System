@@ -52,6 +52,15 @@ def list_items(status: str | None = None, category: str | None = None, _=Depends
     return storage.list_pending_items(status=status, category=category)
 
 
+@app.get("/api/archive", response_model=list[QueueItem])
+def list_archive(status: str | None = None, category: str | None = None, _=Depends(auth.require_auth)):
+    # PROJECT.md 10.4: "Shows items with status archived, filed, or
+    # dismissed. Read only." - a distinct read-only endpoint rather than a
+    # location= param on /api/items, since nothing here is writable the
+    # way a pending item is.
+    return storage.list_archived_items(status=status, category=category)
+
+
 @app.get("/api/items/{queue_id}", response_model=QueueItem)
 def get_item(queue_id: str, _=Depends(auth.require_auth)):
     try:

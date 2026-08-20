@@ -139,3 +139,35 @@ def test_move_unknown_action_is_400(sandbox):
     sandbox.seed(queue_id="a")
     resp = sandbox.client.post("/api/items/a/move", json={"action": "delete"})
     assert resp.status_code == 400
+
+
+def test_archive_view_lists_only_archived_items(sandbox):
+    sandbox.seed(queue_id="pending-1")
+    sandbox.seed(queue_id="to-archive")
+    sandbox.seed(queue_id="to-dismiss")
+    sandbox.client.post("/api/items/to-archive/move", json={"action": "archive"})
+    sandbox.client.post("/api/items/to-dismiss/move", json={"action": "dismiss"})
+
+    resp = sandbox.client.get("/api/archive")
+    assert resp.status_code == 200
+    ids = {i["queue_id"] for i in resp.json()}
+    assert ids == {"to-archive", "to-dismiss"}
+    assert "pending-1" not in ids
+
+
+def test_archive_view_filters_by_status_and_category(sandbox):
+    sandbox.seed(queue_id="a", category="lookup")
+    sandbox.seed(queue_id="b", category="recipe")
+    sandbox.client.post("/api/items/a/move", json={"action": "dismiss"})
+    sandbox.client.post("/api/items/b/move", json={"action": "archive"})
+
+    resp = sandbox.client.get("/api/archive", params={"status": "dismissed"})
+    assert [i["queue_id"] for i in resp.json()] == ["a"]
+
+    resp = sandbox.client.get("/api/archive", params={"category": "recipe"})
+    assert [i["queue_id"] for i in resp.json()] == ["b"]
+
+
+def test_archive_view_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/archive")
+    assert resp.status_code == 401

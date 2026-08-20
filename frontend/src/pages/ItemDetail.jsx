@@ -282,6 +282,10 @@ export default function ItemDetail() {
   if (!item) return null;
 
   const colors = categoryColors(item.category, dark);
+  // PROJECT.md 10.4: the Archive view is read-only - once an item has
+  // moved to archived/filed/dismissed, hide the actions that only make
+  // sense for something still being triaged.
+  const isArchived = ['archived', 'filed', 'dismissed'].includes(item.status);
 
   if (editing) {
     return (
@@ -306,20 +310,26 @@ export default function ItemDetail() {
   return (
     <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
       <div className="px-5 pt-6 pb-2 flex items-center justify-between">
-        <Link to="/" className="text-[13px] inline-flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
-          &larr; Inbox
-        </Link>
-        <button
-          aria-label="Edit item"
-          onClick={() => setEditing(true)}
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+        <Link
+          to={isArchived ? '/archive' : '/'}
+          className="text-[13px] inline-flex items-center gap-1"
+          style={{ color: 'var(--color-text-muted)' }}
         >
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
-            <line x1="12" y1="5" x2="15" y2="8" />
-          </svg>
-        </button>
+          &larr; {isArchived ? 'Archive' : 'Inbox'}
+        </Link>
+        {!isArchived && (
+          <button
+            aria-label="Edit item"
+            onClick={() => setEditing(true)}
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
+              <line x1="12" y1="5" x2="15" y2="8" />
+            </svg>
+          </button>
+        )}
       </div>
       <div className="px-5 pb-4 flex items-start gap-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />
@@ -340,7 +350,7 @@ export default function ItemDetail() {
         <Body item={item} />
       </div>
 
-      <ActionBar queueId={item.queue_id} />
+      {!isArchived && <ActionBar queueId={item.queue_id} />}
     </div>
   );
 }

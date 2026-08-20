@@ -134,6 +134,21 @@ describe('ItemDetail', () => {
     expect(screen.queryByText('Open original link')).not.toBeInTheDocument();
   });
 
+  it('hides Edit and the action bar for an archived item, and links back to Archive', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ status: 'filed', enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByRole('button', { name: /edit item/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Keep in vault' })).not.toBeInTheDocument();
+    const backLink = screen.getByText(/Archive/, { selector: 'a' });
+    expect(backLink).toHaveAttribute('href', '/archive');
+  });
+
   it('shows the enrich_failed note when enrichment is missing', async () => {
     api.getItem.mockResolvedValueOnce(baseItem({ status: 'enrich_failed', enrichment: null }));
 
