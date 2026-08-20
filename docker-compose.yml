@@ -15,3 +15,10 @@ services:
       - E:\notes:/data/vault
       - E:\notes\Archive\Captures:/data/archive:ro
     restart: unless-stopped
+    healthcheck:
+      # No curl/wget in python:3.12-slim - use the stdlib instead.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

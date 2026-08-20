@@ -1,8 +1,26 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 # Mirrors the JSON actually written by Write-QueueRow in
 # Invoke-NoteProcessor-v2.ps1, not just the PROJECT.md example - the two
 # drifted during Stage 1 (e.g. capture_path was never implemented).
+
+# PROJECT.md 9.3's category table. QueueItem.category stays a plain str so
+# a future category (or a value from an older processor version) doesn't
+# break reading existing queue files - only the client-facing edit path
+# needs to reject unknown categories.
+CATEGORIES = (
+    "lookup",
+    "reference",
+    "todo",
+    "project",
+    "recipe",
+    "idea",
+    "media",
+    "grocery",
+    "unclassified",
+)
 
 
 class Citation(BaseModel):
@@ -51,7 +69,7 @@ class ItemUpdate(BaseModel):
     # PROJECT.md 10.5 - status changes go through the move action instead,
     # so a client can't sidestep the pending-only move restriction by
     # PATCHing status directly.
-    category: str | None = None
+    category: Literal[CATEGORIES] | None = None
     title: str | None = None
     body: str | None = None
 

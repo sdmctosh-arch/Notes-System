@@ -2,14 +2,14 @@
 # process (PROJECT.md 10.2: "one Docker container", "FastAPI serves the
 # files"). Two stages so the final image doesn't carry Node or node_modules.
 
-FROM node:22-slim AS frontend-build
+FROM node:22.11.0-slim AS frontend-build
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.12-slim
+FROM python:3.12.7-slim
 WORKDIR /app
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

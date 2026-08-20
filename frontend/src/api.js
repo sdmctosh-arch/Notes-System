@@ -28,4 +28,5 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
+  logout: () => request('/api/logout', { method: 'POST' }),
 };

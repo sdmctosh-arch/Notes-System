@@ -45,8 +45,7 @@ These occurred in this project. Do not repeat them.
 ## Testing
 
 `test-corpus/` holds 26 real captures. Use it as a regression test after any
-change to the prompt or the classifier. The expected result is in
-`test-corpus/baseline.txt`.
+change to the prompt or the classifier.
 
 ## Style
 

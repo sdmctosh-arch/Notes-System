@@ -16,6 +16,13 @@ app = FastAPI(title="Notes System API")
 _MOVE_STATUS = {"archive": "archived", "dismiss": "dismissed", "keep": "filed"}
 
 
+@app.get("/api/health")
+def health():
+    # Unauthenticated on purpose - this is what docker-compose's healthcheck
+    # polls, and it has no session cookie to send.
+    return {"ok": True}
+
+
 class LoginRequest(BaseModel):
     password: str
 

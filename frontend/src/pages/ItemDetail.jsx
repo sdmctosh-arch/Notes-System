@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import { api } from '../api';
 import CategoryBadge from '../components/CategoryBadge';
+import CategoryPicker from '../components/CategoryPicker';
 import Citations from '../components/Citations';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import ActionBar from '../components/ActionBar';
@@ -142,10 +143,88 @@ function Body({ item }) {
   );
 }
 
+function EditForm({ item, onSaved, onCancel }) {
+  const [category, setCategory] = useState(item.category);
+  const [title, setTitle] = useState(item.title || '');
+  const [body, setBody] = useState(item.body || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await api.updateItem(item.queue_id, { category, title, body });
+      onSaved(updated);
+    } catch (e) {
+      setError(e.message);
+      setSaving(false);
+    }
+  }
+
+  const fieldStyle = {
+    background: 'var(--color-card-bg)',
+    borderColor: 'var(--color-border)',
+    color: 'var(--color-text-primary)',
+  };
+
+  return (
+    <div className="flex flex-col">
+      <div className="px-5 pt-4 pb-4 border-b flex flex-col gap-3" style={{ borderColor: 'var(--color-border)' }}>
+        <CategoryPicker value={category} onChange={setCategory} />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title"
+          className="w-full rounded-xl border px-3.5 py-2.5 text-[15px] font-serif font-semibold outline-none"
+          style={fieldStyle}
+        />
+      </div>
+
+      <div className="grow overflow-y-auto p-5">
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={10}
+          className="w-full rounded-xl border p-3.5 text-[14.5px] leading-relaxed outline-none resize-none"
+          style={fieldStyle}
+        />
+      </div>
+
+      <div className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+        {error && (
+          <div className="px-5 pt-3 text-[13px]" style={{ color: 'var(--color-dismiss-text)' }}>
+            {error}
+          </div>
+        )}
+        <div className="flex gap-2 p-5">
+          <button
+            disabled={saving}
+            onClick={save}
+            className="grow text-center py-2.5 rounded-xl text-[13px] font-semibold disabled:opacity-50"
+            style={{ background: 'var(--color-accent)', color: 'var(--color-accent-text)' }}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            disabled={saving}
+            onClick={onCancel}
+            className="grow text-center py-2.5 rounded-xl border text-[13px] font-semibold disabled:opacity-50"
+            style={{ borderColor: 'var(--color-btn-border)', color: 'var(--color-btn-text)' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ItemDetail() {
   const { id } = useParams();
   const [item, setItem] = useState(null);
   const [error, setError] = useState(null);
+  const [editing, setEditing] = useState(false);
   const dark = useDarkMode();
 
   const load = () => {
@@ -177,12 +256,43 @@ export default function ItemDetail() {
 
   const colors = categoryColors(item.category, dark);
 
+  if (editing) {
+    return (
+      <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+        <div className="px-5 pt-6 pb-2">
+          <div className="text-[13px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+            Editing
+          </div>
+        </div>
+        <EditForm
+          item={item}
+          onSaved={(updated) => {
+            setItem(updated);
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
-      <div className="px-5 pt-6 pb-2">
+      <div className="px-5 pt-6 pb-2 flex items-center justify-between">
         <Link to="/" className="text-[13px] inline-flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
           &larr; Inbox
         </Link>
+        <button
+          aria-label="Edit item"
+          onClick={() => setEditing(true)}
+          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+          style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+        >
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
+            <line x1="12" y1="5" x2="15" y2="8" />
+          </svg>
+        </button>
       </div>
       <div className="px-5 pb-4 flex items-start gap-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />

@@ -1,6 +1,12 @@
 import json
 
 
+def test_health_is_unauthenticated(sandbox):
+    resp = sandbox.raw_client.get("/api/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
 def test_list_items_empty(sandbox):
     resp = sandbox.client.get("/api/items")
     assert resp.status_code == 200
@@ -49,6 +55,23 @@ def test_patch_updates_fields_and_persists_to_disk(sandbox):
 def test_patch_404(sandbox):
     resp = sandbox.client.patch("/api/items/nope", json={"title": "x"})
     assert resp.status_code == 404
+
+
+def test_patch_category_accepts_known_value(sandbox):
+    sandbox.seed(queue_id="a", category="lookup")
+    resp = sandbox.client.patch("/api/items/a", json={"category": "todo"})
+    assert resp.status_code == 200
+    assert resp.json()["category"] == "todo"
+
+
+def test_patch_category_rejects_unknown_value(sandbox):
+    sandbox.seed(queue_id="a", category="lookup")
+    resp = sandbox.client.patch("/api/items/a", json={"category": "not-a-real-category"})
+    assert resp.status_code == 422
+
+    # and the file on disk is untouched
+    on_disk = json.loads((sandbox.queue_dir / "pending" / "a.json").read_text())
+    assert on_disk["category"] == "lookup"
 
 
 def test_move_archive(sandbox):
