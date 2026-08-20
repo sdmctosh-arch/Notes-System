@@ -105,6 +105,19 @@ export default function Inbox() {
             </svg>
           </Link>
           <Link
+            to="/lists"
+            aria-label="Lists"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 6.5 6 7.5 8 5.5" />
+              <line x1="10.5" y1="6.5" x2="16.5" y2="6.5" />
+              <path d="M5 13 6 14 8 12" />
+              <line x1="10.5" y1="13" x2="16.5" y2="13" />
+            </svg>
+          </Link>
+          <Link
             to="/vault"
             aria-label="Vault"
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"

@@ -17,12 +17,15 @@ def sandbox(tmp_path, monkeypatch):
     only paid in tests."""
     queue_dir = tmp_path / "queue"
     vault_dir = tmp_path / "vault"
+    archive_dir = tmp_path / "archive"
     (queue_dir / "pending").mkdir(parents=True)
     (queue_dir / "archived").mkdir(parents=True)
     vault_dir.mkdir()
+    archive_dir.mkdir()
 
     monkeypatch.setenv("QUEUE_DIR", str(queue_dir))
     monkeypatch.setenv("VAULT_DIR", str(vault_dir))
+    monkeypatch.setenv("ARCHIVE_DIR", str(archive_dir))
     monkeypatch.setenv("PASSWORD_HASH", TEST_PASSWORD_HASH)
     monkeypatch.setenv("SECRET_KEY", "test-secret-key")
 
@@ -83,6 +86,7 @@ def sandbox(tmp_path, monkeypatch):
             "raw_client": raw_client,
             "queue_dir": queue_dir,
             "vault_dir": vault_dir,
+            "archive_dir": archive_dir,
             "seed": staticmethod(seed),
             "password": TEST_PASSWORD,
         },

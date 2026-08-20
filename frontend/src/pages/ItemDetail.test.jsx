@@ -149,6 +149,17 @@ describe('ItemDetail', () => {
     expect(backLink).toHaveAttribute('href', '/archive');
   });
 
+  it('links to the original capture using capture_id, not queue_id', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+
+    renderDetail();
+
+    const link = await screen.findByText('View original capture');
+    expect(link).toHaveAttribute('href', '/capture/2026-08-11-13-30-10-pm');
+  });
+
   it('shows the enrich_failed note when enrichment is missing', async () => {
     api.getItem.mockResolvedValueOnce(baseItem({ status: 'enrich_failed', enrichment: null }));
 

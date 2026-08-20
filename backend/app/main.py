@@ -6,8 +6,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import auth, storage
-from app.config import VAULT_DIR
-from app.models import ItemUpdate, MoveRequest, QueueItem, SearchResult, VaultNoteContent, VaultNoteSummary
+from app.capture import read_capture
+from app.config import ARCHIVE_DIR, VAULT_DIR
+from app.models import (
+    CaptureContent,
+    ItemUpdate,
+    MoveRequest,
+    QueueItem,
+    SearchResult,
+    VaultNoteContent,
+    VaultNoteSummary,
+)
 from app.search import search_items, search_vault
 from app.storage import InvalidMoveError, ItemNotFoundError
 from app.tandoor import push_recipe
@@ -89,6 +98,15 @@ def search(q: str = "", _=Depends(auth.require_auth)):
     results += search_items(storage.list_archived_items(), query, "archive")
     results += search_vault(VAULT_DIR, query)
     return results
+
+
+@app.get("/api/capture/{capture_id}", response_model=CaptureContent)
+def get_capture(capture_id: str, _=Depends(auth.require_auth)):
+    try:
+        content = read_capture(ARCHIVE_DIR, capture_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No capture {capture_id}")
+    return CaptureContent(capture_id=capture_id, content=content)
 
 
 @app.get("/api/items/{queue_id}", response_model=QueueItem)

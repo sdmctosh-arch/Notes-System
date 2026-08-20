@@ -37,4 +37,5 @@ export const api = {
   getVaultNote: (folder, filename) =>
     request(`/api/vault/${encodeURIComponent(folder)}/${encodeURIComponent(filename)}`),
   search: (q) => request(`/api/search?q=${encodeURIComponent(q)}`),
+  getCapture: (captureId) => request(`/api/capture/${encodeURIComponent(captureId)}`),
 };

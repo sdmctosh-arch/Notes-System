@@ -6,6 +6,7 @@ from pathlib import Path
 # sandbox test suite) without touching the actual mount points.
 QUEUE_DIR = Path(os.environ.get("QUEUE_DIR", "/data/queue"))
 VAULT_DIR = Path(os.environ.get("VAULT_DIR", "/data/vault"))
+ARCHIVE_DIR = Path(os.environ.get("ARCHIVE_DIR", "/data/archive"))
 
 QUEUE_PENDING_DIR = QUEUE_DIR / "pending"
 QUEUE_ARCHIVED_DIR = QUEUE_DIR / "archived"

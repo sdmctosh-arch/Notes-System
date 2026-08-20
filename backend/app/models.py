@@ -90,6 +90,11 @@ class VaultNoteContent(BaseModel):
     content: str
 
 
+class CaptureContent(BaseModel):
+    capture_id: str
+    content: str
+
+
 class SearchResult(BaseModel):
     kind: str  # "item" | "vault_note"
     title: str

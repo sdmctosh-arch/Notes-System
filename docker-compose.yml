@@ -8,6 +8,7 @@ services:
     environment:
       QUEUE_DIR: /data/queue
       VAULT_DIR: /data/vault
+      ARCHIVE_DIR: /data/archive
       PASSWORD_HASH: ${PASSWORD_HASH}
       SECRET_KEY: ${SECRET_KEY}
       # Optional - see .env.example. Leave unset in .env to skip the
