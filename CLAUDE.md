@@ -28,6 +28,14 @@ No part calls another part directly.
 6. **One stage at a time.** Do not start the next stage until its test passes.
    Stages are in PROJECT.md section 12.
 7. **Add a `-DryRun` switch to every script that writes files.**
+8. **Update `docs/PROJECT.md` in the same PR as the change it affects.** Status
+   lines, data formats, view/action descriptions - whatever the change makes
+   true or untrue. Unlike CHANGELOG.md (auto-appended on merge, pure history,
+   never needs rewriting), PROJECT.md is a living spec that gets edited in
+   place, and that can't be automated the same way - deciding what changed
+   and how to state it takes understanding the diff, not just appending a
+   summary. Catching this after the fact, across several merges, is exactly
+   how PROJECT.md drifted before.
 
 ## PowerShell errors to avoid
 
