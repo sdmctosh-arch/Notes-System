@@ -4,12 +4,14 @@ import FilterChips from '../components/FilterChips';
 import InboxRow from '../components/InboxRow';
 import EmptyState from '../components/EmptyState';
 import ThemeToggle from '../components/ThemeToggle';
+import LogoutButton from '../components/LogoutButton';
 import Login from '../components/Login';
 
 export default function Inbox() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
   const [category, setCategory] = useState('all');
+  const [loggedOut, setLoggedOut] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -27,8 +29,15 @@ export default function Inbox() {
 
   useEffect(load, [load]);
 
-  if (error?.status === 401) {
-    return <Login onSuccess={load} />;
+  if (loggedOut || error?.status === 401) {
+    return (
+      <Login
+        onSuccess={() => {
+          setLoggedOut(false);
+          load();
+        }}
+      />
+    );
   }
   if (error) {
     return (
@@ -51,7 +60,10 @@ export default function Inbox() {
             {items ? `${visible.length} item${visible.length === 1 ? '' : 's'} to review` : 'Loading…'}
           </div>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2 shrink-0">
+          <ThemeToggle />
+          <LogoutButton onLoggedOut={() => setLoggedOut(true)} />
+        </div>
       </div>
 
       <FilterChips active={category} onChange={setCategory} />
