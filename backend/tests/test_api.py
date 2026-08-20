@@ -216,3 +216,35 @@ def test_vault_note_endpoint_404_for_missing_file(sandbox):
 def test_vault_note_endpoint_404_for_unknown_folder(sandbox):
     resp = sandbox.client.get("/api/vault/NotARealFolder/x.md")
     assert resp.status_code == 404
+
+
+def test_search_spans_inbox_archive_and_vault(sandbox):
+    sandbox.seed(queue_id="inbox-1", title="Pier 66 laundry question")
+    sandbox.seed(queue_id="to-archive", title="Pier 66 opening hours")
+    sandbox.client.post("/api/items/to-archive/move", json={"action": "archive"})
+
+    directory = sandbox.vault_dir / "Recipes"
+    directory.mkdir(parents=True)
+    (directory / "note.md").write_text(
+        '---\ntitle: "Pier 66 dinner recipe"\n---\n\nBody.\n', encoding="utf-8"
+    )
+
+    resp = sandbox.client.get("/api/search", params={"q": "Pier 66"})
+    assert resp.status_code == 200
+    results = resp.json()
+    kinds = {(r["kind"], r.get("location"), r.get("queue_id"), r.get("filename")) for r in results}
+    assert ("item", "inbox", "inbox-1", None) in kinds
+    assert ("item", "archive", "to-archive", None) in kinds
+    assert ("vault_note", None, None, "note.md") in kinds
+
+
+def test_search_empty_query_returns_no_results(sandbox):
+    sandbox.seed(queue_id="a", title="Pier 66 laundry")
+    resp = sandbox.client.get("/api/search", params={"q": ""})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_search_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/search", params={"q": "x"})
+    assert resp.status_code == 401

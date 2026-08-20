@@ -4,6 +4,7 @@ import ItemDetail from './pages/ItemDetail';
 import Archive from './pages/Archive';
 import Vault from './pages/Vault';
 import VaultNote from './pages/VaultNote';
+import Search from './pages/Search';
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <Route path="/archive" element={<Archive />} />
       <Route path="/vault" element={<Vault />} />
       <Route path="/vault/:folder/:filename" element={<VaultNote />} />
+      <Route path="/search" element={<Search />} />
     </Routes>
   );
 }

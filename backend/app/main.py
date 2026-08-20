@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from app import auth, storage
 from app.config import VAULT_DIR
-from app.models import ItemUpdate, MoveRequest, QueueItem, VaultNoteContent, VaultNoteSummary
+from app.models import ItemUpdate, MoveRequest, QueueItem, SearchResult, VaultNoteContent, VaultNoteSummary
+from app.search import search_items, search_vault
 from app.storage import InvalidMoveError, ItemNotFoundError
 from app.vault import list_vault_notes, read_vault_note, write_vault_note
 
@@ -76,6 +77,17 @@ def get_vault_note(folder: str, filename: str, _=Depends(auth.require_auth)):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"No vault note {folder}/{filename}")
     return VaultNoteContent(folder=folder, filename=filename, content=content)
+
+
+@app.get("/api/search", response_model=list[SearchResult])
+def search(q: str = "", _=Depends(auth.require_auth)):
+    query = q.strip()
+    if not query:
+        return []
+    results = search_items(storage.list_pending_items(), query, "inbox")
+    results += search_items(storage.list_archived_items(), query, "archive")
+    results += search_vault(VAULT_DIR, query)
+    return results
 
 
 @app.get("/api/items/{queue_id}", response_model=QueueItem)

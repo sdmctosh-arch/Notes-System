@@ -82,6 +82,17 @@ export default function Inbox() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Link
+            to="/search"
+            aria-label="Search"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8.5" cy="8.5" r="5" />
+              <line x1="12.3" y1="12.3" x2="17" y2="17" />
+            </svg>
+          </Link>
+          <Link
             to="/archive"
             aria-label="Archive"
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
