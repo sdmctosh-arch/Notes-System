@@ -5,6 +5,8 @@ import Archive from './pages/Archive';
 import Vault from './pages/Vault';
 import VaultNote from './pages/VaultNote';
 import Search from './pages/Search';
+import Lists from './pages/Lists';
+import CaptureView from './pages/CaptureView';
 
 export default function App() {
   return (
@@ -15,6 +17,8 @@ export default function App() {
       <Route path="/vault" element={<Vault />} />
       <Route path="/vault/:folder/:filename" element={<VaultNote />} />
       <Route path="/search" element={<Search />} />
+      <Route path="/lists" element={<Lists />} />
+      <Route path="/capture/:captureId" element={<CaptureView />} />
     </Routes>
   );
 }

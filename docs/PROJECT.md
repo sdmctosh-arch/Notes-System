@@ -1,7 +1,8 @@
 # Note Capture and Enrichment System
 
 Specification and build plan.
-Document version 1.0. Date 2026-08-18.
+Document version 1.1. Date 2026-08-20. Revised to match what actually shipped
+- see CHANGELOG.md for the detailed history this document no longer tracks.
 
 ---
 
@@ -258,6 +259,7 @@ One JSON file for each item. The file name is the `queue_id`.
   "title": "Pier 66 laundry",
   "body": "Find out if Pier 66 has laundry.",
   "url": null,
+  "url_rejected": null,
   "media_type": null,
   "timing": null,
   "proposed_automation": null,
@@ -266,11 +268,14 @@ One JSON file for each item. The file name is the `queue_id`.
   "captured": "2026-08-11T13:30:10-04:00",
   "created": "2026-08-18T16:08:22-04:00",
   "status": "pending",
-  "capture_path": "E:\\notes\\Archive\\Captures\\2026-08-11-13-30-10-pm.md",
   "enrichment": null,
   "processor_version": "0.2"
 }
 ```
+
+There is no `capture_path` field - the original capture always lives at
+`Archive\Captures\<capture_id>.md`, so `capture_id` plus that fixed naming
+convention is enough to find it. See "Capture" under 10.4.
 
 Values of `status`:
 
@@ -308,7 +313,9 @@ enrichment.
 }
 ```
 
-Values of `kind`: `answer`, `page_summary`, `media_info`, `recipe`, `none`.
+Values of `kind`: `answer`, `page_summary`, `media_info`, `recipe`, `guide`.
+There is no `"none"` value - an item that was not enriched has `enrichment`
+itself set to `null`, not an enrichment object with an empty kind.
 
 The `structured` field holds category-specific data. For a recipe it holds a
 schema.org/Recipe object. See section 9.3.
@@ -375,7 +382,7 @@ Only this folder synchronizes. The vault does not synchronize to the phone.
 
 ## 8. Part 2: processor
 
-Status: **built and validated in a sandbox**. Script:
+Status: **complete. Live in production** on the schedule in 8.4. Script:
 `Invoke-NoteProcessor-v2.ps1`.
 
 ### 8.1 File lifecycle
@@ -524,11 +531,15 @@ Enrichment runs for each item. Enrichment does not run for every category.
 | `reference` | Read the URL. Summarize. Give citations | `page_summary` |
 | `media` | Find the correct title, year, and type | `media_info` |
 | `recipe` | Convert to schema.org/Recipe | `recipe` |
-| `todo` | None | `none` |
-| `project` | None | `none` |
-| `idea` | None | `none` |
-| `grocery` | None | `none` |
-| `unclassified` | None | `none` |
+| `project`, `idea`, `unclassified` | Research prior art, a how-to, or options. Write a short brief | `guide` |
+| `todo` | None - `enrichment` stays `null` | n/a |
+| `grocery` | None - `enrichment` stays `null` | n/a |
+
+Only `todo` and `grocery` are task items and skip enrichment entirely. Every
+other category - including `project`, `idea`, and `unclassified`, which this
+table originally marked as unenriched - gets a real enrichment pass. This
+table describes the actual implemented scope, which turned out broader than
+the original plan.
 
 Rules:
 - Enrichment failure is not a capture failure. Set `status` to `enrich_failed`.
@@ -548,8 +559,12 @@ Optional properties: `description`, `recipeYield`, `prepTime`, `cookTime`,
 
 Use ISO 8601 duration format for times. Example: `PT30M`.
 
-This object is the input for a future Tandoor import. Do not build the Tandoor
-integration now.
+This object is the input for the Tandoor import: "Keep in vault" on a recipe
+pushes it to a self-hosted Tandoor instance via `TANDOOR_URL`/
+`TANDOOR_API_TOKEN` (`backend/app/tandoor.py`), best-effort - a Tandoor
+outage never blocks filing the note. Built from Tandoor's public API docs,
+not verified against a live instance; check the container logs after the
+first real "Keep in vault" on a recipe.
 
 ### 9.4 Code guards
 
@@ -566,7 +581,8 @@ These guards do not depend on model behavior. Do not remove them.
 
 ## 10. Part 3: web interface
 
-Status: **to build**.
+Status: **complete. Live in production**, plus Vault and Search (10.4) -
+neither spec'd here originally - beyond this section's original scope.
 
 ### 10.1 Purpose
 
@@ -581,7 +597,7 @@ Show the queue. Let the user decide what to keep.
 | Frontend | React, Vite, Tailwind CSS |
 | Build | The frontend builds to static files. FastAPI serves the files |
 | Storage | JSON files on a bind mount. No database |
-| Port | 8080 on the LAN only |
+| Port | 8100 on the LAN only (this section originally specified 8080; 8100 is what's actually deployed) |
 
 Bind mounts:
 
@@ -614,13 +630,28 @@ Sort by capture time, newest first. Filter by category.
 | `todo`, `project`, `idea` | The title and the body |
 | `unclassified` | The title, the body, and the `ambiguity_note` |
 
-**Lists.** One view for each of `media`, `todo`, and `grocery`. These lists are
-the input for a future integration.
+**Lists.** One view for each of `media`, `todo`, and `grocery`. `todo` and
+`grocery` are checklists - checking an item off dismisses it. `media` links
+each row to its item card, since media (unlike todo/grocery) is enriched and
+has a real card worth seeing.
 
 **Archive.** Shows items with status `archived`, `filed`, or `dismissed`.
 Read only. Include a search field.
 
-**Capture.** Shows the original Markdown file for an item. Read only.
+**Capture.** Shows the original Markdown file for an item, unmodified by
+classification or enrichment - what the phone actually captured. Read only.
+Reachable from a "View original capture" link on the item card, for both
+active and archived items. Reads `Archive\Captures\<capture_id>.md` off the
+`/data/archive` read-only bind mount (10.2).
+
+**Vault.** Not in the original plan. Read-only browser for the Markdown notes
+"Keep in vault" produces, grouped by category folder (Recipes/Projects/
+Ideas/Unclassified). Deliberately scoped to only those folders, never a walk
+of the whole vault - `VAULT_DIR` is the user's entire real notes vault, not
+something this system owns.
+
+**Search.** Not in the original plan. One search field across Inbox, Archive,
+and Vault notes (title, body, enrichment text).
 
 ### 10.5 Actions
 
@@ -634,7 +665,7 @@ Read only. Include a search field.
 | Re-enrich | Write a request file. The processor enriches the item on the next run |
 
 The interface must not call the Gemini API. Re-enrichment is a request to the
-processor.
+processor. **Not built** - no request-file mechanism exists on either side.
 
 ### 10.6 File safety rules
 
@@ -668,44 +699,11 @@ Status: **to build**.
 
 ## 12. Build order
 
-Build one stage at a time. Do not start a stage until the previous test passes.
-
-### Stage 1. Enrichment in the processor
-
-Add pass 2 to `Invoke-NoteProcessor-v2.ps1`.
-
-**Test.** Process the 26-capture corpus in a sandbox. Each `lookup` item has an
-answer and at least one citation. Each `reference` item has a summary. Each
-`recipe` item has a valid schema.org/Recipe object. No capture is lost.
-
-### Stage 2. Backend API
-
-Build the FastAPI service. Endpoints: list items, get one item, update one item,
-move one item.
-
-**Test.** Read the sandbox queue through the API. Change one item status. Confirm
-the file moved to `archived\`.
-
-### Stage 3. Frontend
-
-Build the React interface. Build the Inbox view and the item card first.
-
-**Test.** Open the interface in a phone browser and a desktop browser. Review
-one item of each category. Confirm the YouTube player works.
-
-### Stage 4. Container
-
-Write the Dockerfile and the Compose file. Add authentication.
-
-**Test.** Start the container. Open the interface from another device on the
-LAN. Confirm the password is required.
-
-### Stage 5. Live operation
-
-Point the processor at `E:\notes`. Point the container at the real queue.
-
-**Test.** Capture a note on the phone. Confirm the note appears in the interface
-in less than 10 minutes.
+Stages 1-5 (enrichment, backend API, frontend, container, live operation)
+are complete. This section originally carried a test for each - that job
+now belongs to CHANGELOG.md (one entry per merged PR, updated automatically)
+and the git history, both of which stay accurate on their own instead of
+needing to be hand-maintained here. One stage remains:
 
 ### Stage 6. Digest email
 
@@ -732,24 +730,13 @@ in less than 10 minutes.
 
 ## 14. Current state summary
 
-| Component | State |
-|---|---|
-| MacroDroid capture | Complete |
-| Syncthing transport | Complete |
-| Processor file lifecycle | Complete. Validated in a sandbox |
-| Classification | Complete. 26 of 26 correct |
-| Code guards | Complete |
-| Enrichment | Not started |
-| Web interface | Not started |
-| Digest email | Not started |
-| Tandoor import | Not planned for this version |
-| Home Assistant integration | Not planned for this version |
-| Sonarr and Radarr integration | Not planned for this version |
+Everything through Stage 5 is complete and live, plus Lists and Capture (both
+originally spec'd in 10.4 but not built until now) and Vault, Search, and the
+Tandoor push (none of which were in the original plan - 10.4, 9.3). Re-enrich
+(10.5) is spec'd but still not built. Digest email (Stage 6, section 11) is
+the one other thing not yet built.
 
-### 14.1 Open items
-
-- One capture, `2026-08-11-06-13-06-am.md`, has no frontmatter. The file fails
-  on each run. Add a frontmatter block or delete the file.
-- The live ledger contains 26 identifiers from an earlier test script. These
-  captures will not process again. To process them, rename the ledger and copy
-  the archived captures to `processing\`.
+For what shipped and when, read CHANGELOG.md, not this section - it updates
+itself on every merge and was staying accurate long after this table
+stopped being maintained by hand. Home Assistant and Sonarr/Radarr
+integration remain not planned for this version (1.4).

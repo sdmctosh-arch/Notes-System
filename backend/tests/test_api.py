@@ -250,6 +250,28 @@ def test_search_requires_auth(sandbox):
     assert resp.status_code == 401
 
 
+def test_capture_endpoint_returns_content(sandbox):
+    (sandbox.archive_dir / "2026-08-11-13-30-10-pm.md").write_text(
+        "---\nid: 2026-08-11-13-30-10-pm\n---\n\nPack for Florida tonight.\n",
+        encoding="utf-8",
+    )
+    resp = sandbox.client.get("/api/capture/2026-08-11-13-30-10-pm")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["capture_id"] == "2026-08-11-13-30-10-pm"
+    assert "Pack for Florida tonight." in body["content"]
+
+
+def test_capture_endpoint_404_for_missing_file(sandbox):
+    resp = sandbox.client.get("/api/capture/does-not-exist")
+    assert resp.status_code == 404
+
+
+def test_capture_endpoint_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/capture/anything")
+    assert resp.status_code == 401
+
+
 def test_keep_recipe_succeeds_even_when_tandoor_push_fails(sandbox, monkeypatch):
     from app import main
 
