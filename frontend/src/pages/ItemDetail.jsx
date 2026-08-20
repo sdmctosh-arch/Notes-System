@@ -32,6 +32,29 @@ function Prose({ children }) {
   );
 }
 
+// A citation only shows up when the summary/lookup tool actually
+// surfaced something - if the tool couldn't fetch the page at all (e.g.
+// a Reddit URL that blocks bots), citations comes back empty and the
+// URL the user originally captured would otherwise disappear entirely.
+// Show it unconditionally instead, so there's always a way to open it.
+function OriginalLink({ url }) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[13.5px] no-underline flex items-center gap-1.5 hover:underline mt-1"
+      style={{ color: 'var(--color-text-muted)' }}
+    >
+      <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+        <path d="M8 12 L12 8 M9 6 L11 4 A3 3 0 0 1 15 8 L13 10 M11 14 L9 16 A3 3 0 0 1 5 12 L7 10" />
+      </svg>
+      <span>Open original link</span>
+    </a>
+  );
+}
+
 function Body({ item }) {
   const e = item.enrichment;
 
@@ -44,6 +67,7 @@ function Body({ item }) {
           </div>
         )}
         {item.body}
+        <OriginalLink url={item.url} />
       </div>
     );
   }
@@ -94,6 +118,7 @@ function Body({ item }) {
         )}
         <Prose>{e.detail}</Prose>
         <Citations citations={e.citations} />
+        <OriginalLink url={item.url} />
       </>
     );
   }
@@ -111,6 +136,7 @@ function Body({ item }) {
         </div>
         <Prose>{e.detail}</Prose>
         <Citations citations={e.citations} />
+        <OriginalLink url={item.url} />
       </>
     );
   }
@@ -139,6 +165,7 @@ function Body({ item }) {
       {e.embed?.type === 'youtube' && <YouTubeEmbed videoId={e.embed.video_id} />}
       <Prose>{e.detail}</Prose>
       <Citations citations={e.citations} />
+      <OriginalLink url={item.url} />
     </>
   );
 }

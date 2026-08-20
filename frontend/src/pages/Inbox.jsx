@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState';
 import ThemeToggle from '../components/ThemeToggle';
 import LogoutButton from '../components/LogoutButton';
 import Login from '../components/Login';
+import { saveScrollPosition, getScrollPosition } from '../scrollMemory';
 
 export default function Inbox() {
   const [items, setItems] = useState(null);
@@ -28,6 +29,24 @@ export default function Inbox() {
   }, []);
 
   useEffect(load, [load]);
+
+  // Remember scroll position continuously (not just on navigate-away, so
+  // it's also right if the tab is closed mid-scroll) and restore it once
+  // items have actually rendered - restoring before that just scrolls to
+  // 0 because the page isn't tall enough yet.
+  useEffect(() => {
+    function onScroll() {
+      saveScrollPosition('inbox', window.scrollY);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (items) {
+      window.scrollTo(0, getScrollPosition('inbox'));
+    }
+  }, [items]);
 
   if (loggedOut || error?.status === 401) {
     return (
