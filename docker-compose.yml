@@ -15,6 +15,10 @@ services:
       # Tandoor push entirely.
       TANDOOR_URL: ${TANDOOR_URL:-}
       TANDOOR_API_TOKEN: ${TANDOOR_API_TOKEN:-}
+      # Required for item chat (see .env.example) - leave unset and chat
+      # requests fail with a clear error, but nothing else is affected.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-}
     volumes:
       - E:\notes-system\queue:/data/queue
       - E:\notes:/data/vault

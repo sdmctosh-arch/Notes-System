@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from app.config import QUEUE_ARCHIVED_DIR, QUEUE_PENDING_DIR
-from app.models import QueueItem
+from app.models import ChatMessage, QueueItem
 
 
 class ItemNotFoundError(Exception):
@@ -99,6 +99,27 @@ def update_item(
             if v is not None
         }
     )
+    _write_item_atomic(path, updated)
+    return updated
+
+
+def get_pending_item(queue_id: str) -> QueueItem:
+    # Chat is deliberately pending-only, the same way move_to_archived's
+    # source side is - once an item is archived/filed/dismissed the
+    # interface treats it as read-only (PROJECT.md 10.4's Archive view),
+    # and chat is a mutation like any other.
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        raise ItemNotFoundError(queue_id)
+    return _read_item(path)
+
+
+def add_chat_messages(queue_id: str, messages: list[ChatMessage]) -> QueueItem:
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        raise ItemNotFoundError(queue_id)
+    item = _read_item(path)
+    updated = item.model_copy(update={"chat": item.chat + messages})
     _write_item_atomic(path, updated)
     return updated
 

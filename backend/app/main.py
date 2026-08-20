@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Response
@@ -8,8 +9,11 @@ from pydantic import BaseModel
 from app import auth, storage
 from app.capture import read_capture
 from app.config import ARCHIVE_DIR, VAULT_DIR
+from app.gemini_chat import ChatError, send_message
 from app.models import (
     CaptureContent,
+    ChatMessage,
+    ChatRequest,
     ItemUpdate,
     MoveRequest,
     QueueItem,
@@ -147,6 +151,30 @@ def move_item(queue_id: str, move: MoveRequest, _=Depends(auth.require_auth)):
         raise HTTPException(status_code=404, detail=f"No item {queue_id}")
     except InvalidMoveError as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.post("/api/items/{queue_id}/chat", response_model=QueueItem)
+def send_chat_message(queue_id: str, body: ChatRequest, _=Depends(auth.require_auth)):
+    # Chat-only exception to "the interface does not call the Gemini API"
+    # (PROJECT.md 3.3) - see app/gemini_chat.py's module docstring for why.
+    # Pending-only, the same as every other mutation - an archived item is
+    # read-only.
+    try:
+        item = storage.get_pending_item(queue_id)
+    except ItemNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No item {queue_id}")
+
+    try:
+        reply = send_message(item, body.message)
+    except ChatError as e:
+        raise HTTPException(status_code=502, detail=f"Chat failed: {e}")
+
+    now = datetime.now().astimezone().isoformat()
+    messages = [
+        ChatMessage(role="user", text=body.message, at=now),
+        ChatMessage(role="model", text=reply, at=datetime.now().astimezone().isoformat()),
+    ]
+    return storage.add_chat_messages(queue_id, messages)
 
 
 # --- Static frontend (production only - see Dockerfile) ---------------------
