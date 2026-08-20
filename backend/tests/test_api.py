@@ -171,3 +171,48 @@ def test_archive_view_filters_by_status_and_category(sandbox):
 def test_archive_view_requires_auth(sandbox):
     resp = sandbox.raw_client.get("/api/archive")
     assert resp.status_code == 401
+
+
+def test_vault_endpoint_lists_notes_by_folder(sandbox):
+    directory = sandbox.vault_dir / "Recipes"
+    directory.mkdir(parents=True)
+    (directory / "arroz.md").write_text(
+        '---\ntitle: "Arroz con Gandules"\ncategory: recipe\ncaptured: 2026-08-11T13:30:10-04:00\n---\n\nBody.\n',
+        encoding="utf-8",
+    )
+
+    resp = sandbox.client.get("/api/vault")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "Recipes": [
+            {"filename": "arroz.md", "title": "Arroz con Gandules", "captured": "2026-08-11T13:30:10-04:00"}
+        ]
+    }
+
+
+def test_vault_endpoint_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/vault")
+    assert resp.status_code == 401
+
+
+def test_vault_note_endpoint_returns_content(sandbox):
+    directory = sandbox.vault_dir / "Recipes"
+    directory.mkdir(parents=True)
+    (directory / "arroz.md").write_text("---\ntitle: \"Arroz\"\n---\n\nBody.\n", encoding="utf-8")
+
+    resp = sandbox.client.get("/api/vault/Recipes/arroz.md")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["folder"] == "Recipes"
+    assert body["filename"] == "arroz.md"
+    assert "Body." in body["content"]
+
+
+def test_vault_note_endpoint_404_for_missing_file(sandbox):
+    resp = sandbox.client.get("/api/vault/Recipes/does-not-exist.md")
+    assert resp.status_code == 404
+
+
+def test_vault_note_endpoint_404_for_unknown_folder(sandbox):
+    resp = sandbox.client.get("/api/vault/NotARealFolder/x.md")
+    assert resp.status_code == 404

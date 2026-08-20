@@ -93,6 +93,17 @@ export default function Inbox() {
               <line x1="8.2" y1="11" x2="11.8" y2="11" />
             </svg>
           </Link>
+          <Link
+            to="/vault"
+            aria-label="Vault"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3.5" width="14" height="13" rx="1.5" />
+              <line x1="7" y1="3.5" x2="7" y2="16.5" />
+            </svg>
+          </Link>
           <ThemeToggle />
           <LogoutButton onLoggedOut={() => setLoggedOut(true)} />
         </div>

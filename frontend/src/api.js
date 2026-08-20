@@ -33,4 +33,7 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/api/archive${qs ? `?${qs}` : ''}`);
   },
+  getVault: () => request('/api/vault'),
+  getVaultNote: (folder, filename) =>
+    request(`/api/vault/${encodeURIComponent(folder)}/${encodeURIComponent(filename)}`),
 };

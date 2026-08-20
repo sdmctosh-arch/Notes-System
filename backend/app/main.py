@@ -7,9 +7,9 @@ from pydantic import BaseModel
 
 from app import auth, storage
 from app.config import VAULT_DIR
-from app.models import ItemUpdate, MoveRequest, QueueItem
+from app.models import ItemUpdate, MoveRequest, QueueItem, VaultNoteContent, VaultNoteSummary
 from app.storage import InvalidMoveError, ItemNotFoundError
-from app.vault import write_vault_note
+from app.vault import list_vault_notes, read_vault_note, write_vault_note
 
 app = FastAPI(title="Notes System API")
 
@@ -59,6 +59,23 @@ def list_archive(status: str | None = None, category: str | None = None, _=Depen
     # location= param on /api/items, since nothing here is writable the
     # way a pending item is.
     return storage.list_archived_items(status=status, category=category)
+
+
+@app.get("/api/vault", response_model=dict[str, list[VaultNoteSummary]])
+def get_vault(_=Depends(auth.require_auth)):
+    # Not spec'd in PROJECT.md - VAULT_DIR is the user's whole real notes
+    # vault, so this only lists the category folders write_vault_note
+    # itself writes to (see vault.VAULT_FOLDERS), never the vault root.
+    return list_vault_notes(VAULT_DIR)
+
+
+@app.get("/api/vault/{folder}/{filename}", response_model=VaultNoteContent)
+def get_vault_note(folder: str, filename: str, _=Depends(auth.require_auth)):
+    try:
+        content = read_vault_note(VAULT_DIR, folder, filename)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No vault note {folder}/{filename}")
+    return VaultNoteContent(folder=folder, filename=filename, content=content)
 
 
 @app.get("/api/items/{queue_id}", response_model=QueueItem)

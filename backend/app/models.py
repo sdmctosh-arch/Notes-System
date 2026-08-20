@@ -76,3 +76,15 @@ class ItemUpdate(BaseModel):
 
 class MoveRequest(BaseModel):
     action: str  # "archive" | "dismiss" | "keep"
+
+
+class VaultNoteSummary(BaseModel):
+    filename: str
+    title: str
+    captured: str | None = None
+
+
+class VaultNoteContent(BaseModel):
+    folder: str
+    filename: str
+    content: str
