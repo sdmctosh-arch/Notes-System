@@ -51,6 +51,23 @@ def test_patch_404(sandbox):
     assert resp.status_code == 404
 
 
+def test_patch_category_accepts_known_value(sandbox):
+    sandbox.seed(queue_id="a", category="lookup")
+    resp = sandbox.client.patch("/api/items/a", json={"category": "todo"})
+    assert resp.status_code == 200
+    assert resp.json()["category"] == "todo"
+
+
+def test_patch_category_rejects_unknown_value(sandbox):
+    sandbox.seed(queue_id="a", category="lookup")
+    resp = sandbox.client.patch("/api/items/a", json={"category": "not-a-real-category"})
+    assert resp.status_code == 422
+
+    # and the file on disk is untouched
+    on_disk = json.loads((sandbox.queue_dir / "pending" / "a.json").read_text())
+    assert on_disk["category"] == "lookup"
+
+
 def test_move_archive(sandbox):
     sandbox.seed(queue_id="a")
     resp = sandbox.client.post("/api/items/a/move", json={"action": "archive"})
