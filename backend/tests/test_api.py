@@ -139,3 +139,142 @@ def test_move_unknown_action_is_400(sandbox):
     sandbox.seed(queue_id="a")
     resp = sandbox.client.post("/api/items/a/move", json={"action": "delete"})
     assert resp.status_code == 400
+
+
+def test_archive_view_lists_only_archived_items(sandbox):
+    sandbox.seed(queue_id="pending-1")
+    sandbox.seed(queue_id="to-archive")
+    sandbox.seed(queue_id="to-dismiss")
+    sandbox.client.post("/api/items/to-archive/move", json={"action": "archive"})
+    sandbox.client.post("/api/items/to-dismiss/move", json={"action": "dismiss"})
+
+    resp = sandbox.client.get("/api/archive")
+    assert resp.status_code == 200
+    ids = {i["queue_id"] for i in resp.json()}
+    assert ids == {"to-archive", "to-dismiss"}
+    assert "pending-1" not in ids
+
+
+def test_archive_view_filters_by_status_and_category(sandbox):
+    sandbox.seed(queue_id="a", category="lookup")
+    sandbox.seed(queue_id="b", category="recipe")
+    sandbox.client.post("/api/items/a/move", json={"action": "dismiss"})
+    sandbox.client.post("/api/items/b/move", json={"action": "archive"})
+
+    resp = sandbox.client.get("/api/archive", params={"status": "dismissed"})
+    assert [i["queue_id"] for i in resp.json()] == ["a"]
+
+    resp = sandbox.client.get("/api/archive", params={"category": "recipe"})
+    assert [i["queue_id"] for i in resp.json()] == ["b"]
+
+
+def test_archive_view_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/archive")
+    assert resp.status_code == 401
+
+
+def test_vault_endpoint_lists_notes_by_folder(sandbox):
+    directory = sandbox.vault_dir / "Recipes"
+    directory.mkdir(parents=True)
+    (directory / "arroz.md").write_text(
+        '---\ntitle: "Arroz con Gandules"\ncategory: recipe\ncaptured: 2026-08-11T13:30:10-04:00\n---\n\nBody.\n',
+        encoding="utf-8",
+    )
+
+    resp = sandbox.client.get("/api/vault")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "Recipes": [
+            {"filename": "arroz.md", "title": "Arroz con Gandules", "captured": "2026-08-11T13:30:10-04:00"}
+        ]
+    }
+
+
+def test_vault_endpoint_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/vault")
+    assert resp.status_code == 401
+
+
+def test_vault_note_endpoint_returns_content(sandbox):
+    directory = sandbox.vault_dir / "Recipes"
+    directory.mkdir(parents=True)
+    (directory / "arroz.md").write_text("---\ntitle: \"Arroz\"\n---\n\nBody.\n", encoding="utf-8")
+
+    resp = sandbox.client.get("/api/vault/Recipes/arroz.md")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["folder"] == "Recipes"
+    assert body["filename"] == "arroz.md"
+    assert "Body." in body["content"]
+
+
+def test_vault_note_endpoint_404_for_missing_file(sandbox):
+    resp = sandbox.client.get("/api/vault/Recipes/does-not-exist.md")
+    assert resp.status_code == 404
+
+
+def test_vault_note_endpoint_404_for_unknown_folder(sandbox):
+    resp = sandbox.client.get("/api/vault/NotARealFolder/x.md")
+    assert resp.status_code == 404
+
+
+def test_search_spans_inbox_archive_and_vault(sandbox):
+    sandbox.seed(queue_id="inbox-1", title="Pier 66 laundry question")
+    sandbox.seed(queue_id="to-archive", title="Pier 66 opening hours")
+    sandbox.client.post("/api/items/to-archive/move", json={"action": "archive"})
+
+    directory = sandbox.vault_dir / "Recipes"
+    directory.mkdir(parents=True)
+    (directory / "note.md").write_text(
+        '---\ntitle: "Pier 66 dinner recipe"\n---\n\nBody.\n', encoding="utf-8"
+    )
+
+    resp = sandbox.client.get("/api/search", params={"q": "Pier 66"})
+    assert resp.status_code == 200
+    results = resp.json()
+    kinds = {(r["kind"], r.get("location"), r.get("queue_id"), r.get("filename")) for r in results}
+    assert ("item", "inbox", "inbox-1", None) in kinds
+    assert ("item", "archive", "to-archive", None) in kinds
+    assert ("vault_note", None, None, "note.md") in kinds
+
+
+def test_search_empty_query_returns_no_results(sandbox):
+    sandbox.seed(queue_id="a", title="Pier 66 laundry")
+    resp = sandbox.client.get("/api/search", params={"q": ""})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_search_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/search", params={"q": "x"})
+    assert resp.status_code == 401
+
+
+def test_keep_recipe_succeeds_even_when_tandoor_push_fails(sandbox, monkeypatch):
+    from app import main
+
+    def failing_push(item):
+        return False
+
+    monkeypatch.setattr(main, "push_recipe", failing_push)
+    sandbox.seed(queue_id="a", category="recipe", title="A recipe")
+
+    resp = sandbox.client.post("/api/items/a/move", json={"action": "keep"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "filed"
+
+
+def test_keep_non_recipe_never_calls_tandoor(sandbox, monkeypatch):
+    from app import main
+
+    called = {"n": 0}
+
+    def counting_push(item):
+        called["n"] += 1
+        return True
+
+    monkeypatch.setattr(main, "push_recipe", counting_push)
+    sandbox.seed(queue_id="a", category="idea", title="An idea")
+
+    sandbox.client.post("/api/items/a/move", json={"action": "keep"})
+    assert called["n"] == 0

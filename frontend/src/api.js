@@ -29,4 +29,12 @@ export const api = {
       body: JSON.stringify({ action }),
     }),
   logout: () => request('/api/logout', { method: 'POST' }),
+  listArchive: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/archive${qs ? `?${qs}` : ''}`);
+  },
+  getVault: () => request('/api/vault'),
+  getVaultNote: (folder, filename) =>
+    request(`/api/vault/${encodeURIComponent(folder)}/${encodeURIComponent(filename)}`),
+  search: (q) => request(`/api/search?q=${encodeURIComponent(q)}`),
 };

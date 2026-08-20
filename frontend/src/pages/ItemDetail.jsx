@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import Markdown from 'react-markdown';
 import { api } from '../api';
 import CategoryBadge from '../components/CategoryBadge';
 import CategoryPicker from '../components/CategoryPicker';
 import Citations from '../components/Citations';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import ActionBar from '../components/ActionBar';
+import Prose from '../components/Prose';
 import { categoryColors, categoryLabel } from '../categories';
 import { useDarkMode } from '../theme-hook';
 import Login from '../components/Login';
@@ -21,14 +21,26 @@ function timeAgo(iso) {
   return `${days}d ago`;
 }
 
-function Prose({ children }) {
-  if (!children) return null;
+// A citation only shows up when the summary/lookup tool actually
+// surfaced something - if the tool couldn't fetch the page at all (e.g.
+// a Reddit URL that blocks bots), citations comes back empty and the
+// URL the user originally captured would otherwise disappear entirely.
+// Show it unconditionally instead, so there's always a way to open it.
+function OriginalLink({ url }) {
+  if (!url) return null;
   return (
-    <div className="text-[14.5px] leading-relaxed mb-5 [&_p]:mb-3 [&_ul]:mb-3 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:mb-3 [&_ol]:pl-5 [&_ol]:list-decimal [&_strong]:font-semibold [&_h1]:font-serif [&_h2]:font-serif [&_h3]:font-serif [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_h1]:text-base [&_h2]:text-base [&_h3]:text-[15px] [&_h1]:mb-2 [&_h2]:mb-2 [&_h3]:mb-2 [&_code]:text-[13px] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_pre]:overflow-x-auto [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:mb-3"
-      style={{ color: 'var(--color-text-secondary)' }}
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[13.5px] no-underline flex items-center gap-1.5 hover:underline mt-1"
+      style={{ color: 'var(--color-text-muted)' }}
     >
-      <Markdown>{children}</Markdown>
-    </div>
+      <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+        <path d="M8 12 L12 8 M9 6 L11 4 A3 3 0 0 1 15 8 L13 10 M11 14 L9 16 A3 3 0 0 1 5 12 L7 10" />
+      </svg>
+      <span>Open original link</span>
+    </a>
   );
 }
 
@@ -44,6 +56,7 @@ function Body({ item }) {
           </div>
         )}
         {item.body}
+        <OriginalLink url={item.url} />
       </div>
     );
   }
@@ -94,6 +107,7 @@ function Body({ item }) {
         )}
         <Prose>{e.detail}</Prose>
         <Citations citations={e.citations} />
+        <OriginalLink url={item.url} />
       </>
     );
   }
@@ -111,6 +125,7 @@ function Body({ item }) {
         </div>
         <Prose>{e.detail}</Prose>
         <Citations citations={e.citations} />
+        <OriginalLink url={item.url} />
       </>
     );
   }
@@ -139,6 +154,7 @@ function Body({ item }) {
       {e.embed?.type === 'youtube' && <YouTubeEmbed videoId={e.embed.video_id} />}
       <Prose>{e.detail}</Prose>
       <Citations citations={e.citations} />
+      <OriginalLink url={item.url} />
     </>
   );
 }
@@ -255,6 +271,10 @@ export default function ItemDetail() {
   if (!item) return null;
 
   const colors = categoryColors(item.category, dark);
+  // PROJECT.md 10.4: the Archive view is read-only - once an item has
+  // moved to archived/filed/dismissed, hide the actions that only make
+  // sense for something still being triaged.
+  const isArchived = ['archived', 'filed', 'dismissed'].includes(item.status);
 
   if (editing) {
     return (
@@ -279,20 +299,26 @@ export default function ItemDetail() {
   return (
     <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
       <div className="px-5 pt-6 pb-2 flex items-center justify-between">
-        <Link to="/" className="text-[13px] inline-flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
-          &larr; Inbox
-        </Link>
-        <button
-          aria-label="Edit item"
-          onClick={() => setEditing(true)}
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+        <Link
+          to={isArchived ? '/archive' : '/'}
+          className="text-[13px] inline-flex items-center gap-1"
+          style={{ color: 'var(--color-text-muted)' }}
         >
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
-            <line x1="12" y1="5" x2="15" y2="8" />
-          </svg>
-        </button>
+          &larr; {isArchived ? 'Archive' : 'Inbox'}
+        </Link>
+        {!isArchived && (
+          <button
+            aria-label="Edit item"
+            onClick={() => setEditing(true)}
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
+              <line x1="12" y1="5" x2="15" y2="8" />
+            </svg>
+          </button>
+        )}
       </div>
       <div className="px-5 pb-4 flex items-start gap-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />
@@ -313,7 +339,7 @@ export default function ItemDetail() {
         <Body item={item} />
       </div>
 
-      <ActionBar queueId={item.queue_id} />
+      {!isArchived && <ActionBar queueId={item.queue_id} />}
     </div>
   );
 }

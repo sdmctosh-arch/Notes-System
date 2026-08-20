@@ -13,3 +13,8 @@ window.matchMedia =
       removeEventListener: () => {},
     };
   };
+
+// jsdom doesn't implement scrolling and logs a noisy "not implemented"
+// warning on every call - Inbox restores scroll position on mount, so
+// this fires in nearly every test that renders it.
+window.scrollTo = () => {};

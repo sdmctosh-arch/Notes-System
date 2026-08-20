@@ -415,12 +415,35 @@ Each capture must reach one state only. A capture must not disappear.
 | Item | Value |
 |---|---|
 | Program | `C:\Program Files\PowerShell\7\pwsh.exe` |
-| Arguments | `-NoProfile -ExecutionPolicy Bypass -File "E:\notes-system\scripts\Invoke-NoteProcessor-v2.ps1" -Model <model>` |
+| Arguments | `-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "E:\notes-system\scripts\Invoke-NoteProcessor-v2.ps1" -Model <model>` |
 | Repeat | Every 5 minutes |
 | Account | The same account that created `gemini.key.xml` |
+| "Run only when user is logged on" | Checked - required for DPAPI, see below |
 
 The DPAPI key decrypts for one user on one machine only. A different account
-cannot read the key.
+cannot read the key. That requirement forces "Run only when user is logged
+on" instead of "Run whether user is logged on or not," and a task with that
+setting runs in the interactive session - so unlike a non-interactive task,
+it can flash a console window on screen every 5 minutes even with
+`-WindowStyle Hidden` on the command line, because that flag hides the
+window pwsh.exe itself opens but does not stop the brief flash while Task
+Scheduler launches it. If `-WindowStyle Hidden` alone does not fully
+suppress it (this could not be confirmed against the real Windows
+Task Scheduler from this environment - verify on the deployment machine),
+the reliable fix is a one-line VBScript launcher that starts pwsh.exe with
+window style `0` (fully hidden, no flash) and points the task at that
+instead:
+
+```vbscript
+' E:\notes-system\scripts\Run-NoteProcessor-Hidden.vbs
+CreateObject("WScript.Shell").Run _
+    "C:\Program Files\PowerShell\7\pwsh.exe -NoProfile -ExecutionPolicy Bypass -File ""E:\notes-system\scripts\Invoke-NoteProcessor-v2.ps1"" -Model <model>", _
+    0, False
+```
+
+Then set the task's Program to `wscript.exe` and Arguments to
+`"E:\notes-system\scripts\Run-NoteProcessor-Hidden.vbs"`, keeping the same
+Account and "Run only when user is logged on" setting as above.
 
 ### 8.5 PowerShell rules
 

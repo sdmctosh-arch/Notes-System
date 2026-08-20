@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import FilterChips from '../components/FilterChips';
 import InboxRow from '../components/InboxRow';
@@ -6,6 +7,7 @@ import EmptyState from '../components/EmptyState';
 import ThemeToggle from '../components/ThemeToggle';
 import LogoutButton from '../components/LogoutButton';
 import Login from '../components/Login';
+import { saveScrollPosition, getScrollPosition } from '../scrollMemory';
 
 export default function Inbox() {
   const [items, setItems] = useState(null);
@@ -28,6 +30,24 @@ export default function Inbox() {
   }, []);
 
   useEffect(load, [load]);
+
+  // Remember scroll position continuously (not just on navigate-away, so
+  // it's also right if the tab is closed mid-scroll) and restore it once
+  // items have actually rendered - restoring before that just scrolls to
+  // 0 because the page isn't tall enough yet.
+  useEffect(() => {
+    function onScroll() {
+      saveScrollPosition('inbox', window.scrollY);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (items) {
+      window.scrollTo(0, getScrollPosition('inbox'));
+    }
+  }, [items]);
 
   if (loggedOut || error?.status === 401) {
     return (
@@ -61,6 +81,40 @@ export default function Inbox() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to="/search"
+            aria-label="Search"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8.5" cy="8.5" r="5" />
+              <line x1="12.3" y1="12.3" x2="17" y2="17" />
+            </svg>
+          </Link>
+          <Link
+            to="/archive"
+            aria-label="Archive"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="14" height="3.5" rx="1" />
+              <path d="M4 8v6.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8" />
+              <line x1="8.2" y1="11" x2="11.8" y2="11" />
+            </svg>
+          </Link>
+          <Link
+            to="/vault"
+            aria-label="Vault"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3.5" width="14" height="13" rx="1.5" />
+              <line x1="7" y1="3.5" x2="7" y2="16.5" />
+            </svg>
+          </Link>
           <ThemeToggle />
           <LogoutButton onLoggedOut={() => setLoggedOut(true)} />
         </div>

@@ -98,6 +98,57 @@ describe('ItemDetail', () => {
     expect(screen.getByText('movie')).toBeInTheDocument();
   });
 
+  it('shows the original URL as a link even when citations came back empty', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        url: 'https://www.reddit.com/r/example/comments/abc123/some_thread/',
+        enrichment: {
+          kind: 'answer',
+          summary: 'The lookup did not turn anything up.',
+          detail: 'The page could not be retrieved.',
+          citations: [],
+        },
+      }),
+    );
+
+    renderDetail();
+
+    const link = await screen.findByText('Open original link');
+    expect(link.closest('a')).toHaveAttribute(
+      'href',
+      'https://www.reddit.com/r/example/comments/abc123/some_thread/',
+    );
+  });
+
+  it('does not show an original-URL link when the item has no URL', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        url: null,
+        enrichment: { kind: 'answer', summary: 'An answer.', detail: '', citations: [] },
+      }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('An answer.');
+    expect(screen.queryByText('Open original link')).not.toBeInTheDocument();
+  });
+
+  it('hides Edit and the action bar for an archived item, and links back to Archive', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ status: 'filed', enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByRole('button', { name: /edit item/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Keep in vault' })).not.toBeInTheDocument();
+    const backLink = screen.getByText(/Archive/, { selector: 'a' });
+    expect(backLink).toHaveAttribute('href', '/archive');
+  });
+
   it('shows the enrich_failed note when enrichment is missing', async () => {
     api.getItem.mockResolvedValueOnce(baseItem({ status: 'enrich_failed', enrichment: null }));
 

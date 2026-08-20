@@ -94,3 +94,69 @@ def write_vault_note(vault_root: Path, item: QueueItem) -> Path:
     target = _unique_path(directory, filename)
     target.write_text(content, encoding="utf-8")
     return target
+
+
+# --- Read-only vault browsing (the "Vault" view) -----------------------------
+#
+# VAULT_DIR is the user's whole real notes vault (E:\notes), not a directory
+# this system owns - it's the same mount Obsidian or whatever else points at.
+# Only look inside the folders write_vault_note actually writes to, never
+# walk the vault root itself, or this view would expose unrelated personal
+# files that have nothing to do with this system.
+VAULT_FOLDERS = sorted(set(CATEGORY_FOLDER.values()))
+
+
+def _parse_frontmatter(text: str) -> dict:
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return {}
+    fm: dict[str, str] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+            value = value[1:-1].replace('\\"', '"')
+        fm[key.strip()] = value
+    return fm
+
+
+def list_vault_notes(vault_root: Path) -> dict[str, list[dict]]:
+    result: dict[str, list[dict]] = {}
+    for folder_name in VAULT_FOLDERS:
+        folder = vault_root / folder_name
+        if not folder.is_dir():
+            continue
+        notes = []
+        for md in sorted(folder.glob("*.md")):
+            fm = _parse_frontmatter(md.read_text(encoding="utf-8"))
+            notes.append(
+                {
+                    "filename": md.name,
+                    "title": fm.get("title") or md.stem,
+                    "captured": fm.get("captured"),
+                }
+            )
+        if notes:
+            result[folder_name] = notes
+    return result
+
+
+def read_vault_note(vault_root: Path, folder: str, filename: str) -> str:
+    if folder not in VAULT_FOLDERS:
+        raise FileNotFoundError(folder)
+
+    # filename comes straight from the URL path - resolve and check it
+    # actually lands inside vault_root/folder before reading, so a
+    # "../../something-else" can't escape the vault folders above.
+    target = (vault_root / folder / filename).resolve()
+    allowed_root = (vault_root / folder).resolve()
+    if allowed_root not in target.parents and target != allowed_root:
+        raise FileNotFoundError(filename)
+    if target.suffix != ".md" or not target.is_file():
+        raise FileNotFoundError(filename)
+
+    return target.read_text(encoding="utf-8")
