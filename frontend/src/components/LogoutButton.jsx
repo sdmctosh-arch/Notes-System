@@ -4,7 +4,7 @@ export default function LogoutButton({ onLoggedOut }) {
   return (
     <button
       aria-label="Log out"
-      onClick={() => api.logout().finally(onLoggedOut)}
+      onClick={() => api.logout().catch(() => {}).finally(onLoggedOut)}
       className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
       style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
     >
