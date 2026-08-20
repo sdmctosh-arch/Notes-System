@@ -1,6 +1,12 @@
 import json
 
 
+def test_health_is_unauthenticated(sandbox):
+    resp = sandbox.raw_client.get("/api/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
 def test_list_items_empty(sandbox):
     resp = sandbox.client.get("/api/items")
     assert resp.status_code == 200
