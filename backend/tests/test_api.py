@@ -300,3 +300,70 @@ def test_keep_non_recipe_never_calls_tandoor(sandbox, monkeypatch):
 
     sandbox.client.post("/api/items/a/move", json={"action": "keep"})
     assert called["n"] == 0
+
+
+def test_chat_appends_user_and_model_messages(sandbox, monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "send_message", lambda item, message: "Yes, open until 8pm.")
+    sandbox.seed(queue_id="a")
+
+    resp = sandbox.client.post("/api/items/a/chat", json={"message": "Weekend hours?"})
+    assert resp.status_code == 200
+    chat = resp.json()["chat"]
+    assert len(chat) == 2
+    assert chat[0] == {"role": "user", "text": "Weekend hours?", "at": chat[0]["at"]}
+    assert chat[1]["role"] == "model"
+    assert chat[1]["text"] == "Yes, open until 8pm."
+
+    # persisted to disk, not just the response
+    on_disk = json.loads((sandbox.queue_dir / "pending" / "a.json").read_text())
+    assert len(on_disk["chat"]) == 2
+
+
+def test_chat_accumulates_across_multiple_messages(sandbox, monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "send_message", lambda item, message: f"reply to: {message}")
+    sandbox.seed(queue_id="a")
+
+    sandbox.client.post("/api/items/a/chat", json={"message": "first"})
+    resp = sandbox.client.post("/api/items/a/chat", json={"message": "second"})
+
+    texts = [m["text"] for m in resp.json()["chat"]]
+    assert texts == ["first", "reply to: first", "second", "reply to: second"]
+
+
+def test_chat_404_for_missing_item(sandbox):
+    resp = sandbox.client.post("/api/items/nope/chat", json={"message": "hi"})
+    assert resp.status_code == 404
+
+
+def test_chat_404_for_archived_item(sandbox):
+    sandbox.seed(queue_id="a")
+    sandbox.client.post("/api/items/a/move", json={"action": "archive"})
+
+    resp = sandbox.client.post("/api/items/a/chat", json={"message": "hi"})
+    assert resp.status_code == 404
+
+
+def test_chat_502_when_gemini_call_fails(sandbox, monkeypatch):
+    from app import main
+    from app.gemini_chat import ChatError
+
+    def failing(item, message):
+        raise ChatError("boom")
+
+    monkeypatch.setattr(main, "send_message", failing)
+    sandbox.seed(queue_id="a")
+
+    resp = sandbox.client.post("/api/items/a/chat", json={"message": "hi"})
+    assert resp.status_code == 502
+    # and nothing got persisted from the failed attempt
+    on_disk = json.loads((sandbox.queue_dir / "pending" / "a.json").read_text())
+    assert on_disk.get("chat", []) == []
+
+
+def test_chat_requires_auth(sandbox):
+    resp = sandbox.raw_client.post("/api/items/a/chat", json={"message": "hi"})
+    assert resp.status_code == 401

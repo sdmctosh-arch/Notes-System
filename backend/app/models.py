@@ -44,6 +44,12 @@ class Enrichment(BaseModel):
     enriched_at: str
 
 
+class ChatMessage(BaseModel):
+    role: Literal["user", "model"]
+    text: str
+    at: str
+
+
 class QueueItem(BaseModel):
     queue_id: str
     capture_id: str
@@ -62,6 +68,10 @@ class QueueItem(BaseModel):
     status: str
     enrichment: Enrichment | None = None
     processor_version: str
+    # Not written by the processor - only ever added to by the interface's
+    # chat endpoint (app/gemini_chat.py). Defaults to [] so every queue file
+    # written before this feature existed still loads.
+    chat: list[ChatMessage] = []
 
 
 class ItemUpdate(BaseModel):
@@ -76,6 +86,10 @@ class ItemUpdate(BaseModel):
 
 class MoveRequest(BaseModel):
     action: str  # "archive" | "dismiss" | "keep"
+
+
+class ChatRequest(BaseModel):
+    message: str
 
 
 class VaultNoteSummary(BaseModel):

@@ -6,6 +6,7 @@ import CategoryPicker from '../components/CategoryPicker';
 import Citations from '../components/Citations';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import ActionBar from '../components/ActionBar';
+import ChatPanel from '../components/ChatPanel';
 import Prose from '../components/Prose';
 import { categoryColors, categoryLabel } from '../categories';
 import { useDarkMode } from '../theme-hook';
@@ -344,6 +345,7 @@ export default function ItemDetail() {
 
       <div className="grow overflow-y-auto p-5">
         <Body item={item} />
+        {!isArchived && <ChatPanel item={item} onUpdate={setItem} />}
       </div>
 
       {!isArchived && <ActionBar queueId={item.queue_id} />}

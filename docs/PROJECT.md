@@ -142,7 +142,16 @@ The parts communicate through files only. There is no API between the parts.
 - Part 2 reads that folder. Part 2 writes JSON files to the queue.
 - Part 3 reads the queue. Part 3 moves queue files and writes Markdown files.
 
-Part 3 does not call the Gemini API. All API keys stay on the server.
+Part 3 does not call the Gemini API for classification or enrichment - those
+stay processor-only and file-based, exactly as described above.
+
+**One deliberate exception: item chat (10.4).** A live follow-up
+conversation needs a synchronous reply, which the processor's every-5-minute
+file-based pipeline can't give. The interface calls the Interactions API
+directly for this one feature, using its own `GEMINI_API_KEY` (same key
+material as `gemini.key.xml`, just also given to this container as a plain
+env var - see `.env.example` - since DPAPI only decrypts for one Windows
+user on one machine, not a Linux container). See `backend/app/gemini_chat.py`.
 
 ---
 
@@ -650,6 +659,18 @@ Ideas/Unclassified). Deliberately scoped to only those folders, never a walk
 of the whole vault - `VAULT_DIR` is the user's entire real notes vault, not
 something this system owns.
 
+**Chat.** Not in the original plan. A live follow-up conversation on the
+item card, below the enrichment content - "Follow up," a message history,
+and a text field. Uses the note's title/body/enrichment as context and the
+same tools as enrichment (`google_search`, `url_context`), so a follow-up
+can look something up, not just reason over what's already there. This is
+the one place the interface calls the Gemini API directly (3.3) - everything
+else stays processor-only and file-based. Persisted into the item's own JSON
+(a `chat` field, same atomic-write pattern as everything else - still just a
+file, no database), so it survives a reload and travels with the item if
+it's later filed. Pending items only, the same restriction every other
+mutation has - archived items are read-only, chat included.
+
 **Search.** Not in the original plan. One search field across Inbox, Archive,
 and Vault notes (title, body, enrichment text).
 
@@ -731,10 +752,12 @@ needing to be hand-maintained here. One stage remains:
 ## 14. Current state summary
 
 Everything through Stage 5 is complete and live, plus Lists and Capture (both
-originally spec'd in 10.4 but not built until now) and Vault, Search, and the
-Tandoor push (none of which were in the original plan - 10.4, 9.3). Re-enrich
-(10.5) is spec'd but still not built. Digest email (Stage 6, section 11) is
-the one other thing not yet built.
+originally spec'd in 10.4 but not built until now) and Vault, Search, Chat,
+and the Tandoor push (none of which were in the original plan - 10.4, 9.3).
+Chat is also the one place the interface calls the Gemini API directly (3.3)
+- everything else the original plan describes is unchanged. Re-enrich (10.5)
+is spec'd but still not built. Digest email (Stage 6, section 11) is the one
+other thing not yet built.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates
 itself on every merge and was staying accurate long after this table

@@ -19,6 +19,7 @@ function baseItem(overrides) {
     captured: '2026-08-11T13:30:10-04:00',
     status: 'enriched',
     enrichment: null,
+    chat: [],
     ...overrides,
   };
 }
@@ -147,6 +148,18 @@ describe('ItemDetail', () => {
     expect(screen.queryByRole('button', { name: 'Keep in vault' })).not.toBeInTheDocument();
     const backLink = screen.getByText(/Archive/, { selector: 'a' });
     expect(backLink).toHaveAttribute('href', '/archive');
+    expect(screen.queryByPlaceholderText('Ask a follow-up…')).not.toBeInTheDocument();
+  });
+
+  it('shows the chat panel for an active (non-archived) item', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByPlaceholderText('Ask a follow-up…')).toBeInTheDocument();
   });
 
   it('links to the original capture using capture_id, not queue_id', async () => {
