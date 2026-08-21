@@ -431,7 +431,11 @@ function Invoke-Enrichment {
         }
     } | ConvertTo-Json -Depth 20
 
-    $uri = 'https://generativelanguage.googleapis.com/v1beta/interactions'
+    # Overridable so a re-enrich request can be exercised against a local
+    # stub in a sandbox that can't reach the real API (mirrors the
+    # interface's own GEMINI_INTERACTIONS_URL override in gemini_chat.py) -
+    # the default is the real endpoint.
+    $uri = if ($env:GEMINI_INTERACTIONS_URL) { $env:GEMINI_INTERACTIONS_URL } else { 'https://generativelanguage.googleapis.com/v1beta/interactions' }
 
     $attempt = 0
     $resp = $null
@@ -567,6 +571,97 @@ function Write-QueueRow {
     return $target
 }
 
+# --- Re-enrichment requests ---------------------------------------------------
+#
+# PROJECT.md 10.5: the interface must not call the Gemini API for this - it
+# only writes a <queue_id>.reenrich marker file into queue\pending\ (a
+# documented exception to 10.6's "the processor creates files in
+# queue\pending\ only", alongside chat's Gemini-call exception in 3.3). This
+# is the processor side: pick up each marker, redo pass 2 on the matching
+# item, and remove the marker either way so a bad request doesn't loop.
+
+function Set-QueueItemAtomic {
+    <# 10.6: write to a temp file, then replace - never edit the JSON a
+       reader might be mid-read on in place. #>
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)]$Item
+    )
+    $json = $Item | ConvertTo-Json -Depth 10
+    $tmp  = Join-Path (Split-Path $Path -Parent) (".tmp-{0}.json" -f [guid]::NewGuid().ToString('N'))
+    Set-Content -LiteralPath $tmp -Value $json -Encoding utf8
+    # Move-Item -Force, not [IO.File]::Replace($tmp, $Path, $null) - on this
+    # platform/.NET, Replace's 3-arg overload throws "The value cannot be an
+    # empty string (Parameter 'path')" when the backup path is $null, even
+    # though $null is meant to mean "no backup". Move-Item -Force overwrites
+    # an existing target fine (CLAUDE.md's Move-Item note is about the
+    # *default*, non-Force behavior - deliberately overwriting an existing
+    # file, as here, is exactly what -Force is for) and stays a same-
+    # directory rename, so it's still atomic.
+    Move-Item -LiteralPath $tmp -Destination $Path -Force
+}
+
+function Invoke-ReenrichRequests {
+    param([Parameter(Mandatory)][hashtable]$Stats)
+
+    $markers = @(Get-ChildItem -LiteralPath $QueuePending -Filter '*.reenrich' -File -ErrorAction SilentlyContinue |
+        Sort-Object Name)
+    if ($markers.Count -eq 0) { return }
+    Write-Log "Found $($markers.Count) re-enrich request(s)."
+
+    foreach ($marker in $markers) {
+        $queueId  = [IO.Path]::GetFileNameWithoutExtension($marker.Name)
+        $itemPath = Join-Path $QueuePending "$queueId.json"
+        try {
+            if (-not (Test-Path -LiteralPath $itemPath)) {
+                Write-Log "  $queueId - no matching pending item (already moved on?) - dropping the request." 'WARN'
+                continue
+            }
+
+            $item = Get-Content -LiteralPath $itemPath -Raw -Encoding utf8 | ConvertFrom-Json
+            if ($item.category -in $TaskCategories) {
+                Write-Log "  $queueId - [$($item.category)] is never enriched - dropping the request." 'WARN'
+                continue
+            }
+
+            if ($DryRun) {
+                Write-Log "  DRYRUN re-enrich $queueId [$($item.category)]"
+                continue
+            }
+
+            $synthetic = [pscustomobject]@{
+                category = $item.category
+                title    = $item.title
+                body     = $item.body
+                url      = $item.url
+            }
+            try {
+                $enrichment = Invoke-Enrichment -Item $synthetic -NoteId $item.capture_id
+            }
+            catch {
+                # Leave the item exactly as it was - a failed retry must not
+                # discard a working enrichment the item already had, and if
+                # it was already enrich_failed this just leaves it that way.
+                Write-Log "  $queueId - re-enrichment failed, item left unchanged - $($_.Exception.Message)" 'WARN'
+                $Stats.ReenrichFailed++
+                continue
+            }
+
+            $item.enrichment = $enrichment
+            $item.status     = 'enriched'
+            Set-QueueItemAtomic -Path $itemPath -Item $item
+            $Stats.Reenriched++
+            Write-Log "  $queueId - re-enriched."
+        }
+        catch {
+            Write-Log "  $queueId - could not process re-enrich request - $($_.Exception.Message)" 'ERROR'
+        }
+        finally {
+            if (-not $DryRun) { Remove-Item -LiteralPath $marker.FullName -Force -ErrorAction SilentlyContinue }
+        }
+    }
+}
+
 # --- Setup -------------------------------------------------------------------
 
 foreach ($dir in @($InboxDir, $ArchiveDir, $ProcessingDir, $FailedDir,
@@ -605,7 +700,8 @@ if (Test-Path -LiteralPath $LockPath) {
 }
 if (-not $DryRun) { Set-Content -LiteralPath $LockPath -Value $PID -Encoding utf8 }
 
-$stats = @{ Seen=0; Queued=0; EnrichFailed=0; Duplicate=0; Skipped=0; Failed=0; Deferred=0; NotSettled=0 }
+$stats = @{ Seen=0; Queued=0; EnrichFailed=0; Duplicate=0; Skipped=0; Failed=0; Deferred=0; NotSettled=0
+            Reenriched=0; ReenrichFailed=0 }
 
 try {
     Write-Log "Processor $ProcessorVersion starting. Model=$Model DryRun=$DryRun"
@@ -818,9 +914,11 @@ try {
         if ($DelaySeconds -gt 0) { Start-Sleep -Seconds $DelaySeconds }
     }
 
-    Write-Log ("Done. seen={0} queued={1} enrich-failed={2} duplicate={3} skipped={4} deferred={5} failed={6} not-settled={7}" -f `
+    Invoke-ReenrichRequests -Stats $stats
+
+    Write-Log ("Done. seen={0} queued={1} enrich-failed={2} duplicate={3} skipped={4} deferred={5} failed={6} not-settled={7} reenriched={8} reenrich-failed={9}" -f `
         $stats.Seen, $stats.Queued, $stats.EnrichFailed, $stats.Duplicate, $stats.Skipped,
-        $stats.Deferred, $stats.Failed, $stats.NotSettled)
+        $stats.Deferred, $stats.Failed, $stats.NotSettled, $stats.Reenriched, $stats.ReenrichFailed)
 }
 finally {
     if (-not $DryRun -and (Test-Path -LiteralPath $LockPath)) { Remove-Item -LiteralPath $LockPath -Force }

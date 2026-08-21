@@ -48,4 +48,6 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ important }),
     }),
+  requestReenrich: (id) =>
+    request(`/api/items/${encodeURIComponent(id)}/reenrich`, { method: 'POST' }),
 };

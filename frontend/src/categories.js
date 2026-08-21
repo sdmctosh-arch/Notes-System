@@ -15,6 +15,15 @@ export const CATEGORIES = [
 
 const BY_KEY = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
 
+// Mirrors $TaskCategories in Invoke-NoteProcessor-v2.ps1 - todo and grocery
+// are tasks, acted on rather than researched, so the processor never
+// enriches them. Re-enrich has nothing to redo for either one.
+const TASK_CATEGORIES = new Set(['todo', 'grocery']);
+
+export function isEnrichableCategory(key) {
+  return !TASK_CATEGORIES.has(key);
+}
+
 export function categoryLabel(key) {
   return BY_KEY[key]?.label ?? key;
 }

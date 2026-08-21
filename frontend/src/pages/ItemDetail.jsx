@@ -8,9 +8,10 @@ import YouTubeEmbed from '../components/YouTubeEmbed';
 import ActionBar from '../components/ActionBar';
 import ChatPanel from '../components/ChatPanel';
 import ItemLabel from '../components/ItemLabel';
+import ReenrichButton from '../components/ReenrichButton';
 import StarIcon from '../components/StarIcon';
 import Prose from '../components/Prose';
-import { categoryColors, categoryLabel } from '../categories';
+import { categoryColors, categoryLabel, isEnrichableCategory } from '../categories';
 import { isNewItem, isStaleItem } from '../itemLabels';
 import { useDarkMode } from '../theme-hook';
 import Login from '../components/Login';
@@ -386,6 +387,7 @@ export default function ItemDetail() {
 
       <div className="grow overflow-y-auto p-5">
         <Body item={item} />
+        {!isArchived && isEnrichableCategory(item.category) && <ReenrichButton queueId={item.queue_id} />}
         {!isArchived && <ChatPanel item={item} onUpdate={setItem} />}
       </div>
 

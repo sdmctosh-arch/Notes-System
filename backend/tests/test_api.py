@@ -399,3 +399,35 @@ def test_set_important_404_for_archived_item(sandbox):
 def test_set_important_requires_auth(sandbox):
     resp = sandbox.raw_client.patch("/api/items/a/important", json={"important": True})
     assert resp.status_code == 401
+
+
+def test_reenrich_writes_a_marker_file(sandbox):
+    sandbox.seed(queue_id="a")
+
+    resp = sandbox.client.post("/api/items/a/reenrich")
+    assert resp.status_code == 202
+
+    assert (sandbox.queue_dir / "pending" / "a.reenrich").exists()
+    # the item itself is untouched - only the processor changes it
+    on_disk = json.loads((sandbox.queue_dir / "pending" / "a.json").read_text())
+    assert on_disk["status"] == "enriched"
+
+
+def test_reenrich_404_for_missing_item(sandbox):
+    resp = sandbox.client.post("/api/items/nope/reenrich")
+    assert resp.status_code == 404
+    assert not (sandbox.queue_dir / "pending" / "nope.reenrich").exists()
+
+
+def test_reenrich_404_for_archived_item(sandbox):
+    sandbox.seed(queue_id="a")
+    sandbox.client.post("/api/items/a/move", json={"action": "archive"})
+
+    resp = sandbox.client.post("/api/items/a/reenrich")
+    assert resp.status_code == 404
+    assert not (sandbox.queue_dir / "archived" / "a.reenrich").exists()
+
+
+def test_reenrich_requires_auth(sandbox):
+    resp = sandbox.raw_client.post("/api/items/a/reenrich")
+    assert resp.status_code == 401

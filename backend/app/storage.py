@@ -136,6 +136,19 @@ def set_important(queue_id: str, important: bool) -> QueueItem:
     return updated
 
 
+def request_reenrich(queue_id: str) -> None:
+    # PROJECT.md 10.5: the interface must not call the Gemini API for this -
+    # it only writes a marker file. The processor picks it up on its next
+    # run, redoes pass 2, and removes the marker either way (see
+    # Invoke-ReenrichRequests in Invoke-NoteProcessor-v2.ps1). Pending-only,
+    # the same as chat and set_important - an archived item is read-only.
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        raise ItemNotFoundError(queue_id)
+    marker = QUEUE_PENDING_DIR / f"{queue_id}.reenrich"
+    marker.touch()
+
+
 def move_to_archived(queue_id: str, new_status: str) -> QueueItem:
     # 10.6: the interface moves files from queue\pending\ to
     # queue\archived\ only - so a move is only valid starting from pending.

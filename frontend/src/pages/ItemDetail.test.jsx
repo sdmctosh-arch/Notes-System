@@ -6,7 +6,7 @@ import ItemDetail from './ItemDetail';
 import { api } from '../api';
 
 vi.mock('../api', () => ({
-  api: { getItem: vi.fn(), updateItem: vi.fn(), setImportant: vi.fn() },
+  api: { getItem: vi.fn(), updateItem: vi.fn(), setImportant: vi.fn(), requestReenrich: vi.fn() },
 }));
 
 function baseItem(overrides) {
@@ -150,6 +150,23 @@ describe('ItemDetail', () => {
     const backLink = screen.getByText(/Archive/, { selector: 'a' });
     expect(backLink).toHaveAttribute('href', '/archive');
     expect(screen.queryByPlaceholderText('Ask a follow-up…')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-enrich' })).not.toBeInTheDocument();
+  });
+
+  it('shows the Re-enrich button for an enrichable category, not for a task category', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByRole('button', { name: 'Re-enrich' })).toBeInTheDocument();
+  });
+
+  it('hides Re-enrich for a task category (todo)', async () => {
+    api.getItem.mockResolvedValueOnce(baseItem({ category: 'todo', enrichment: null }));
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByRole('button', { name: 'Re-enrich' })).not.toBeInTheDocument();
   });
 
   it('shows the chat panel for an active (non-archived) item', async () => {

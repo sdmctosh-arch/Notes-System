@@ -695,12 +695,27 @@ and Vault notes (title, body, enrichment text).
 | Re-enrich | Write a request file. The processor enriches the item on the next run |
 
 The interface must not call the Gemini API. Re-enrichment is a request to the
-processor. **Not built** - no request-file mechanism exists on either side.
+processor, not a call the interface makes itself - `POST
+/api/items/{id}/reenrich` just touches an empty `<queue_id>.reenrich` marker
+in `queue\pending\`. Pending only, and only for a category the processor
+actually enriches (todo and grocery never are - see 9.2's `$TaskCategories`
+- the interface hides the button for those, and the processor drops the
+marker harmlessly if one shows up anyway). The processor's
+`Invoke-ReenrichRequests` (in `Invoke-NoteProcessor-v2.ps1`) scans for these
+markers on every run, redoes pass 2 with the item's current category/title/
+body/url, and removes the marker either way. On success it overwrites
+`enrichment` and sets `status` to `enriched`; on failure it leaves the item
+completely unchanged (never wipes a working enrichment because a retry
+failed) and just logs a warning. The interface never sees whether the retry
+worked - only that the request was made.
 
 ### 10.6 File safety rules
 
 - Write to a temporary file. Then rename the file. Do not write in place.
-- The processor creates files in `queue\pending\` only.
+- The processor creates queue item (`.json`) files in `queue\pending\` only.
+  One documented exception: `queue\pending\*.reenrich` marker files (10.5) -
+  the interface creates those, the processor deletes them, alongside chat's
+  exception to "the interface does not call the Gemini API" (3.3).
 - The interface moves files from `queue\pending\` to `queue\archived\` only.
 - Read all JSON as UTF-8.
 
@@ -760,13 +775,14 @@ needing to be hand-maintained here. One stage remains:
 
 ## 14. Current state summary
 
-Everything through Stage 5 is complete and live, plus Lists and Capture (both
-originally spec'd in 10.4 but not built until now) and Vault, Search, Chat,
-and the Tandoor push (none of which were in the original plan - 10.4, 9.3).
-Chat is also the one place the interface calls the Gemini API directly (3.3)
-- everything else the original plan describes is unchanged. Re-enrich (10.5)
-is spec'd but still not built. Digest email (Stage 6, section 11) is the one
-other thing not yet built.
+Everything through Stage 5 is complete and live, plus Lists, Capture, and
+Re-enrich (all originally spec'd in 10.4/10.5 but not built until now) and
+Vault, Search, Chat, and the Tandoor push (none of which were in the
+original plan - 10.4, 9.3). Chat is also the one place the interface calls
+the Gemini API directly (3.3), and re-enrich is the one place besides chat
+where the interface and the processor both write into `queue\pending\`
+(10.6) - everything else the original plan describes is unchanged. Digest
+email (Stage 6, section 11) is the one thing not yet built.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates
 itself on every merge and was staying accurate long after this table

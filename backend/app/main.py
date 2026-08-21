@@ -163,6 +163,18 @@ def set_item_important(queue_id: str, body: ImportantRequest, _=Depends(auth.req
         raise HTTPException(status_code=404, detail=f"No item {queue_id}")
 
 
+@app.post("/api/items/{queue_id}/reenrich", status_code=202)
+def request_reenrich(queue_id: str, _=Depends(auth.require_auth)):
+    # 202, not 200 with the updated item: unlike chat/important, nothing
+    # about the item changes here - only the processor, on its next run,
+    # actually redoes the enrichment (PROJECT.md 10.5).
+    try:
+        storage.request_reenrich(queue_id)
+    except ItemNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No item {queue_id}")
+    return {"ok": True}
+
+
 @app.post("/api/items/{queue_id}/chat", response_model=QueueItem)
 def send_chat_message(queue_id: str, body: ChatRequest, _=Depends(auth.require_auth)):
     # Chat-only exception to "the interface does not call the Gemini API"
