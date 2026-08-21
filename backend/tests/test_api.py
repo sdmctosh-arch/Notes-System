@@ -431,3 +431,50 @@ def test_reenrich_404_for_archived_item(sandbox):
 def test_reenrich_requires_auth(sandbox):
     resp = sandbox.raw_client.post("/api/items/a/reenrich")
     assert resp.status_code == 401
+
+
+def test_create_item_writes_a_pending_item(sandbox):
+    resp = sandbox.client.post("/api/items", json={"category": "idea", "title": "Deck idea", "body": "Add a pergola."})
+    assert resp.status_code == 201
+    created = resp.json()
+    assert created["category"] == "idea"
+    assert created["title"] == "Deck idea"
+    assert created["body"] == "Add a pergola."
+    assert created["status"] == "pending"
+    assert created["enrichment"] is None
+    assert created["manual"] is True
+    assert created["capture_id"] == created["queue_id"]
+
+    on_disk = json.loads((sandbox.queue_dir / "pending" / f"{created['queue_id']}.json").read_text())
+    assert on_disk["manual"] is True
+
+    # now shows up in the inbox listing like anything else
+    resp = sandbox.client.get("/api/items")
+    assert created["queue_id"] in {i["queue_id"] for i in resp.json()}
+
+
+def test_create_item_requests_enrichment_for_an_enrichable_category(sandbox):
+    resp = sandbox.client.post("/api/items", json={"category": "lookup", "body": "Does the library have a 3D printer?"})
+    created = resp.json()
+    assert (sandbox.queue_dir / "pending" / f"{created['queue_id']}.reenrich").exists()
+
+
+def test_create_item_skips_reenrich_request_for_a_task_category(sandbox):
+    resp = sandbox.client.post("/api/items", json={"category": "todo", "body": "Buy milk"})
+    created = resp.json()
+    assert not (sandbox.queue_dir / "pending" / f"{created['queue_id']}.reenrich").exists()
+
+
+def test_create_item_rejects_empty_body(sandbox):
+    resp = sandbox.client.post("/api/items", json={"category": "idea", "body": ""})
+    assert resp.status_code == 422
+
+
+def test_create_item_rejects_unknown_category(sandbox):
+    resp = sandbox.client.post("/api/items", json={"category": "not-a-real-category", "body": "x"})
+    assert resp.status_code == 422
+
+
+def test_create_item_requires_auth(sandbox):
+    resp = sandbox.raw_client.post("/api/items", json={"category": "idea", "body": "x"})
+    assert resp.status_code == 401

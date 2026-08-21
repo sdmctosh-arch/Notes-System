@@ -17,6 +17,7 @@ from app.models import (
     ImportantRequest,
     ItemUpdate,
     MoveRequest,
+    NewItemRequest,
     QueueItem,
     SearchResult,
     VaultNoteContent,
@@ -66,6 +67,14 @@ def logout(response: Response):
 @app.get("/api/items", response_model=list[QueueItem])
 def list_items(status: str | None = None, category: str | None = None, _=Depends(auth.require_auth)):
     return storage.list_pending_items(status=status, category=category)
+
+
+@app.post("/api/items", response_model=QueueItem, status_code=201)
+def create_item(payload: NewItemRequest, _=Depends(auth.require_auth)):
+    # Not from the phone - added directly in the interface (PROJECT.md
+    # 10.4/10.5). Writes straight into queue/pending, skipping
+    # classification entirely since the user already picked the category.
+    return storage.create_item(category=payload.category, title=payload.title, body=payload.body)
 
 
 @app.get("/api/archive", response_model=list[QueueItem])

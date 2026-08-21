@@ -7,6 +7,7 @@ import VaultNote from './pages/VaultNote';
 import Search from './pages/Search';
 import Lists from './pages/Lists';
 import CaptureView from './pages/CaptureView';
+import NewItem from './pages/NewItem';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
       <Route path="/search" element={<Search />} />
       <Route path="/lists" element={<Lists />} />
       <Route path="/capture/:captureId" element={<CaptureView />} />
+      <Route path="/new" element={<NewItem />} />
     </Routes>
   );
 }

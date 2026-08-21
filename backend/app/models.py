@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Mirrors the JSON actually written by Write-QueueRow in
 # Invoke-NoteProcessor-v2.ps1, not just the PROJECT.md example - the two
@@ -21,6 +21,10 @@ CATEGORIES = (
     "grocery",
     "unclassified",
 )
+
+# Mirrors $TaskCategories in Invoke-NoteProcessor-v2.ps1 - todo and grocery
+# are acted on, not researched, so the processor never enriches them.
+TASK_CATEGORIES = frozenset({"todo", "grocery"})
 
 
 class Citation(BaseModel):
@@ -76,6 +80,10 @@ class QueueItem(BaseModel):
     # Defaults to False so every queue file written before this feature
     # existed still loads.
     important: bool = False
+    # True only for an item created directly in the interface (10.4/10.5) -
+    # it has no backing capture file under Archive\Captures, so the client
+    # uses this to know not to show a "View original capture" link.
+    manual: bool = False
 
 
 class ItemUpdate(BaseModel):
@@ -86,6 +94,12 @@ class ItemUpdate(BaseModel):
     category: Literal[CATEGORIES] | None = None
     title: str | None = None
     body: str | None = None
+
+
+class NewItemRequest(BaseModel):
+    category: Literal[CATEGORIES]
+    title: str | None = None
+    body: str = Field(min_length=1)
 
 
 class MoveRequest(BaseModel):

@@ -682,6 +682,20 @@ mutation has - archived items are read-only, chat included.
 **Search.** Not in the original plan. One search field across Inbox, Archive,
 and Vault notes (title, body, enrichment text).
 
+**New note.** Not in the original plan. A "+" on the Inbox header opens a
+form (category, optional title, body) and `POST /api/items` writes a queue
+item straight into `queue\pending\` - skipping classification entirely,
+since the user already picked the category. A third documented exception to
+"the processor creates files in `queue\pending\` only" (3.3's chat
+exception, 10.6's reenrich-marker exception, and now this). The item is
+marked `manual: true` (it has no real capture file behind it - `capture_id`
+is a synthetic id, not a real `Archive\Captures\*.md` filename - so the
+client uses this to skip the "View original capture" link). For any
+category the processor actually enriches (everything except `todo` and
+`grocery` - 9.2's `$TaskCategories`), creating the note also drops a
+`.reenrich` marker (10.5) so it gets enriched on the processor's next run,
+the same as if it had come in from the phone.
+
 ### 10.5 Actions
 
 | Action | Effect |
@@ -713,9 +727,11 @@ worked - only that the request was made.
 
 - Write to a temporary file. Then rename the file. Do not write in place.
 - The processor creates queue item (`.json`) files in `queue\pending\` only.
-  One documented exception: `queue\pending\*.reenrich` marker files (10.5) -
-  the interface creates those, the processor deletes them, alongside chat's
-  exception to "the interface does not call the Gemini API" (3.3).
+  Two documented exceptions: `queue\pending\*.reenrich` marker files (10.5) -
+  the interface creates those, the processor deletes them - and a New note
+  (10.4), which the interface writes directly as a queue item `.json` file,
+  skipping classification. Both alongside chat's exception to "the
+  interface does not call the Gemini API" (3.3).
 - The interface moves files from `queue\pending\` to `queue\archived\` only.
 - Read all JSON as UTF-8.
 
@@ -777,12 +793,13 @@ needing to be hand-maintained here. One stage remains:
 
 Everything through Stage 5 is complete and live, plus Lists, Capture, and
 Re-enrich (all originally spec'd in 10.4/10.5 but not built until now) and
-Vault, Search, Chat, and the Tandoor push (none of which were in the
-original plan - 10.4, 9.3). Chat is also the one place the interface calls
-the Gemini API directly (3.3), and re-enrich is the one place besides chat
-where the interface and the processor both write into `queue\pending\`
-(10.6) - everything else the original plan describes is unchanged. Digest
-email (Stage 6, section 11) is the one thing not yet built.
+Vault, Search, Chat, the New note view, and the Tandoor push (none of which
+were in the original plan - 10.4, 9.3). Chat is also the one place the
+interface calls the Gemini API directly (3.3), and re-enrich and New note
+are the two other places the interface writes into `queue\pending\`
+alongside the processor (10.6) - everything else the original plan
+describes is unchanged. Digest email (Stage 6, section 11) is the one thing
+not yet built.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates
 itself on every merge and was staying accurate long after this table

@@ -375,13 +375,15 @@ export default function ItemDetail() {
           <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
             Captured {timeAgo(item.captured)}
           </div>
-          <Link
-            to={`/capture/${encodeURIComponent(item.capture_id)}`}
-            className="text-xs mt-1 inline-block hover:underline"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            View original capture
-          </Link>
+          {!item.manual && (
+            <Link
+              to={`/capture/${encodeURIComponent(item.capture_id)}`}
+              className="text-xs mt-1 inline-block hover:underline"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              View original capture
+            </Link>
+          )}
         </div>
       </div>
 

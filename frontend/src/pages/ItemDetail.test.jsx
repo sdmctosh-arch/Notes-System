@@ -21,6 +21,7 @@ function baseItem(overrides) {
     enrichment: null,
     chat: [],
     important: false,
+    manual: false,
     ...overrides,
   };
 }
@@ -255,6 +256,15 @@ describe('ItemDetail', () => {
     renderDetail();
     await screen.findByText('Pier 66 laundry');
     expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+  });
+
+  it('hides "View original capture" for a manually-added note', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ manual: true, enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByText('View original capture')).not.toBeInTheDocument();
   });
 
   it('links to the original capture using capture_id, not queue_id', async () => {

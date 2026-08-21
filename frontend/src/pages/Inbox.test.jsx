@@ -108,6 +108,17 @@ describe('Inbox', () => {
     expect(screen.getAllByLabelText('Important')).toHaveLength(1);
   });
 
+  it('links the New note button to /new', async () => {
+    api.listItems.mockResolvedValueOnce([]);
+    render(
+      <MemoryRouter>
+        <Inbox />
+      </MemoryRouter>,
+    );
+    await screen.findByText("You're all caught up");
+    expect(screen.getByLabelText('New note')).toHaveAttribute('href', '/new');
+  });
+
   it('shows the login form on a 401', async () => {
     const err = new Error('Unauthorized');
     err.status = 401;
