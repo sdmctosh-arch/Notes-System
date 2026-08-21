@@ -76,10 +76,12 @@ class QueueItem(BaseModel):
     # chat endpoint (app/gemini_chat.py). Defaults to [] so every queue file
     # written before this feature existed still loads.
     chat: list[ChatMessage] = []
-    # Interface-only, like chat - the user's own "remember this one" marker.
-    # Defaults to False so every queue file written before this feature
-    # existed still loads.
-    important: bool = False
+    # Interface-only, like chat - the user's own "keep this one at the top"
+    # marker. Defaults to False so every queue file written before this
+    # feature existed still loads. Was briefly called `important` (a star
+    # toggle with no grouping effect) before being replaced by pinning,
+    # which both marks and reorders - see PROJECT.md 10.5.
+    pinned: bool = False
     # True only for an item created directly in the interface (10.4/10.5) -
     # it has no backing capture file under Archive\Captures, so the client
     # uses this to know not to show a "View original capture" link.
@@ -110,8 +112,8 @@ class ChatRequest(BaseModel):
     message: str
 
 
-class ImportantRequest(BaseModel):
-    important: bool
+class PinRequest(BaseModel):
+    pinned: bool
 
 
 class VaultNoteSummary(BaseModel):

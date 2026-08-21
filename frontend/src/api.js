@@ -44,10 +44,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
-  setImportant: (id, important) =>
-    request(`/api/items/${encodeURIComponent(id)}/important`, {
+  setPinned: (id, pinned) =>
+    request(`/api/items/${encodeURIComponent(id)}/pin`, {
       method: 'PATCH',
-      body: JSON.stringify({ important }),
+      body: JSON.stringify({ pinned }),
     }),
   requestReenrich: (id) =>
     request(`/api/items/${encodeURIComponent(id)}/reenrich`, { method: 'POST' }),

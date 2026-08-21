@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
-export default function ActionBar({ queueId }) {
+// onDone is set by the desktop two-pane right pane (Inbox.jsx), which
+// stays on "/" throughout - navigate('/') there wouldn't remount Inbox or
+// refresh its list, so it passes a callback to do that instead.
+export default function ActionBar({ queueId, onDone }) {
   const navigate = useNavigate();
   const [pending, setPending] = useState(null);
   const [error, setError] = useState(null);
@@ -12,7 +15,11 @@ export default function ActionBar({ queueId }) {
     setError(null);
     try {
       await api.moveItem(queueId, action);
-      navigate('/');
+      if (onDone) {
+        onDone();
+      } else {
+        navigate('/');
+      }
     } catch (e) {
       setError(e.message);
       setPending(null);

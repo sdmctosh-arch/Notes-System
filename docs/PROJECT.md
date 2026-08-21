@@ -651,13 +651,55 @@ the label just stops rendering once the item is filed, archived, or
 dismissed, since it leaves the pending queue at that point anyway. No new
 backend field; see `frontend/src/itemLabels.js`.
 
+Not in the original plan: a welcome header above the filter chips - "Good
+morning"/"Good afternoon"/"Good evening" (computed client-side from the
+local hour, not a stored name - this is a single-user app with no profile
+field to greet by, per 10.3) and a one-line count of new vs. total notes.
+Below it, pending items split into a "Pinned" group and a "To review" group
+(10.5) - the split only renders when at least one item is pinned, so an
+Inbox with nothing pinned looks exactly like it did before pinning existed.
+
+Not in the original plan: on a phone-width screen, the row of nav icons
+above the item list is gone - a single hamburger button opens a slide-in
+drawer instead (Inbox, Lists, Vault, Archive, a dark-mode switch, and log
+out), and a floating "+" button in the bottom corner replaces the old
+header "+" link for New note. See `frontend/src/components/Drawer.jsx`.
+
+Not in the original plan: on a desktop-width screen (1024px and up, see
+`frontend/src/useIsDesktop.js`) the Inbox becomes a two-pane layout instead
+of a single column - a persistent icon rail on the far left
+(`components/DesktopRail.jsx`, the desktop counterpart to the mobile
+drawer), a list pane in the middle (the same items, grouping, and filter
+chips as the mobile view), and a detail pane on the right that shows
+whichever row was last clicked. Clicking a row does not navigate or change
+the URL - it only changes which item the detail pane renders
+(`ItemDetail`'s `id`/`embedded` props, `pages/Inbox.jsx`) - so the list
+stays visible while browsing. Keep/Archive/Dismiss in the detail pane clear
+the selection and reload the list instead of navigating to `/`, since the
+Inbox is already the page being shown. Every other view (Archive, Vault,
+Search, an item opened from one of those) keeps the single always-full-page
+detail view unchanged, on desktop and phone alike - only the Inbox has a
+two-pane mode.
+
+Not in the original plan: `media` and `recipe` items get a placeholder
+image slot instead of the usual category-color badge, since a poster or
+dish photo would be the more useful visual there once a real image source
+is wired up. Nothing fetches or stores an actual image yet - the slot is a
+labelled striped placeholder box (`frontend/src/components/ArtPlaceholder.jsx`)
+occupying real layout: a 2:3 "poster" thumbnail in the list for `media`, a
+1:1 "dish" thumbnail for `recipe`; in the item detail, `media` gets a 16:9
+placeholder backdrop above the header (with a dashed title-logo box and a
+type/year caption, in place of the category badge) and `recipe` gets a 4:3
+inset placeholder ahead of the ingredients. See `components/InboxRow.jsx`
+and `pages/ItemDetail.jsx`.
+
 **Item card.** The content changes with the category.
 
 | Category | Card content |
 |---|---|
 | `lookup` | The question. The answer. Citation links |
 | `reference` | The page title. The summary. Citation links. A YouTube player if the URL is a video |
-| `media` | The title, type, and year. A poster image is not required |
+| `media` | The title, type, and year. A poster/backdrop image is not required - shows a placeholder slot until a real image source is wired up (see below) |
 | `recipe` | The recipe name. Ingredients. Steps |
 | `todo`, `project`, `idea` | The title and the body |
 | `unclassified` | The title, the body, and the `ambiguity_note` |
@@ -721,7 +763,7 @@ the same as if it had come in from the phone.
 | Dismiss | Set `status` to `dismissed`. Move the queue file to `archived\` |
 | Change category | Change `category`. Keep `status` as it is |
 | Edit title or body | Change the field. Do not change the original capture |
-| Flag as important | Not in the original plan. Toggle `important` on the item. Pending only, like every other mutation - once archived/filed/dismissed the flag can still be seen but no longer changed |
+| Pin | Not in the original plan. Toggle `pinned` on the item. Pending only, like every other mutation - once archived/filed/dismissed the pin can still be seen but no longer changed. Pinned items sort to a "Pinned" group at the top of the Inbox (10.4) |
 | Re-enrich | Write a request file. The processor enriches the item on the next run |
 | Unarchive | Not in the original plan. `archived`/`dismissed` only. Move the queue file back to `pending\`. Recompute `status` (`enriched` if `enrichment` is set, else `pending`) - `captured` is left untouched, so the item returns at its real age |
 | Share | Not in the original plan. Client-only, no request to the interface's backend at all - available on every item regardless of status. Uses the Web Share API (`navigator.share`) to hand the item's title, summary (or body, if unenriched), and original URL to another app on the phone; falls back to copying the same text to the clipboard when the browser has no share sheet, or when the user's chosen app rejects the share for a reason other than cancelling. See `frontend/src/shareText.js` and `components/ShareButton.jsx` |
@@ -828,6 +870,13 @@ interface writes into `queue\pending\` alongside the processor (10.6) -
 everything else the original plan describes is unchanged. Digest email
 (Stage 6, section 11) is the one thing
 not yet built.
+
+Also not in the original plan: the Inbox's important/star toggle was
+replaced outright by Pin (10.5) - there is no `important` field any more,
+only `pinned` - and the Inbox itself picked up a welcome header/greeting,
+Pinned/To review grouping, a hamburger drawer nav on phone screens, a
+desktop two-pane split view, and placeholder art slots for `media`/`recipe`
+items (all 10.4).
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates
 itself on every merge and was staying accurate long after this table
