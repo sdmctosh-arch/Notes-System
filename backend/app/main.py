@@ -166,6 +166,18 @@ def move_item(queue_id: str, move: MoveRequest, _=Depends(auth.require_auth)):
         raise HTTPException(status_code=409, detail=str(e))
 
 
+@app.post("/api/items/{queue_id}/unarchive", response_model=QueueItem)
+def unarchive_item(queue_id: str, _=Depends(auth.require_auth)):
+    # Archived and dismissed only - a filed item can't be cleanly reversed
+    # (see storage.unarchive_item) and stays permanent from this endpoint.
+    try:
+        return storage.unarchive_item(queue_id)
+    except ItemNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No item {queue_id}")
+    except InvalidMoveError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
 @app.patch("/api/items/{queue_id}/important", response_model=QueueItem)
 def set_item_important(queue_id: str, body: ImportantRequest, _=Depends(auth.require_auth)):
     # Pending-only, the same as chat - an archived item is read-only.

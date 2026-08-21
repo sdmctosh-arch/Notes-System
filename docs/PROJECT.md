@@ -668,7 +668,8 @@ each row to its item card, since media (unlike todo/grocery) is enriched and
 has a real card worth seeing.
 
 **Archive.** Shows items with status `archived`, `filed`, or `dismissed`.
-Read only. Include a search field.
+Read only, except for Unarchive (10.5) on `archived`/`dismissed` items - not
+in the original plan. Include a search field.
 
 **Capture.** Shows the original Markdown file for an item, unmodified by
 classification or enrichment - what the phone actually captured. Read only.
@@ -722,6 +723,14 @@ the same as if it had come in from the phone.
 | Edit title or body | Change the field. Do not change the original capture |
 | Flag as important | Not in the original plan. Toggle `important` on the item. Pending only, like every other mutation - once archived/filed/dismissed the flag can still be seen but no longer changed |
 | Re-enrich | Write a request file. The processor enriches the item on the next run |
+| Unarchive | Not in the original plan. `archived`/`dismissed` only. Move the queue file back to `pending\`. Recompute `status` (`enriched` if `enrichment` is set, else `pending`) - `captured` is left untouched, so the item returns at its real age |
+| Share | Not in the original plan. Client-only, no request to the interface's backend at all - available on every item regardless of status. Uses the Web Share API (`navigator.share`) to hand the item's title, summary (or body, if unenriched), and original URL to another app on the phone; falls back to copying the same text to the clipboard when the browser has no share sheet, or when the user's chosen app rejects the share for a reason other than cancelling. See `frontend/src/shareText.js` and `components/ShareButton.jsx` |
+
+`Unarchive` does not apply to `filed` - "Keep in vault" already wrote a
+real Markdown file to the vault (and, for a recipe or movie, possibly
+pushed to Tandoor or Seerr too), neither of which this can safely reverse,
+so a filed item stays permanent. `POST /api/items/{id}/unarchive` 409s for
+it, the same as for a pending item that was never archived at all.
 
 The interface must not call the Gemini API. Re-enrichment is a request to the
 processor, not a call the interface makes itself - `POST
@@ -747,7 +756,10 @@ worked - only that the request was made.
   (10.4), which the interface writes directly as a queue item `.json` file,
   skipping classification. Both alongside chat's exception to "the
   interface does not call the Gemini API" (3.3).
-- The interface moves files from `queue\pending\` to `queue\archived\` only.
+- The interface moves files from `queue\pending\` to `queue\archived\` for
+  Keep/Archive/Dismiss, and the reverse direction for Unarchive
+  (`archived`/`dismissed` only, per 10.5) - the only two directions it ever
+  moves a queue item file.
 - Read all JSON as UTF-8.
 
 ### 10.7 Design requirements
@@ -808,13 +820,13 @@ needing to be hand-maintained here. One stage remains:
 
 Everything through Stage 5 is complete and live, plus Lists, Capture, and
 Re-enrich (all originally spec'd in 10.4/10.5 but not built until now) and
-Vault, Search, Chat, the New note view, and the Tandoor and Seerr pushes
-(none of which were in the original plan - 10.4, 9.2, 9.3). Chat is also
-the one place the interface calls the Gemini API directly (3.3), and
-re-enrich and New note are the two other places the interface writes into
-`queue\pending\` alongside the processor (10.6) - everything else the
-original plan describes is unchanged. Digest email (Stage 6, section 11) is
-the one thing
+Vault, Search, Chat, the New note view, the Tandoor and Seerr pushes,
+Unarchive, and Share (none of which were in the original plan - 10.4, 10.5,
+9.2, 9.3). Chat is also the one place the interface calls the Gemini API
+directly (3.3), and re-enrich and New note are the two other places the
+interface writes into `queue\pending\` alongside the processor (10.6) -
+everything else the original plan describes is unchanged. Digest email
+(Stage 6, section 11) is the one thing
 not yet built.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates

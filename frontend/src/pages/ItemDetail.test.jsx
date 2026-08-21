@@ -6,7 +6,13 @@ import ItemDetail from './ItemDetail';
 import { api } from '../api';
 
 vi.mock('../api', () => ({
-  api: { getItem: vi.fn(), updateItem: vi.fn(), setImportant: vi.fn(), requestReenrich: vi.fn() },
+  api: {
+    getItem: vi.fn(),
+    updateItem: vi.fn(),
+    setImportant: vi.fn(),
+    requestReenrich: vi.fn(),
+    unarchiveItem: vi.fn(),
+  },
 }));
 
 function baseItem(overrides) {
@@ -152,6 +158,33 @@ describe('ItemDetail', () => {
     expect(backLink).toHaveAttribute('href', '/archive');
     expect(screen.queryByPlaceholderText('Ask a follow-up…')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-enrich' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Unarchive' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
+  });
+
+  it('shows Share for an active item too', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
+  });
+
+  it.each(['archived', 'dismissed'])('shows Unarchive for a %s item, not the active-item action bar', async (status) => {
+    api.getItem.mockResolvedValueOnce(baseItem({ status, enrichment: null }));
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByRole('button', { name: 'Unarchive' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Keep in vault' })).not.toBeInTheDocument();
+  });
+
+  it('does not show Unarchive for an active (pending) item', async () => {
+    api.getItem.mockResolvedValueOnce(baseItem({ status: 'enriched' }));
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByRole('button', { name: 'Unarchive' })).not.toBeInTheDocument();
   });
 
   it('shows the Re-enrich button for an enrichable category, not for a task category', async () => {

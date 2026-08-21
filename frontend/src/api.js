@@ -51,4 +51,6 @@ export const api = {
     }),
   requestReenrich: (id) =>
     request(`/api/items/${encodeURIComponent(id)}/reenrich`, { method: 'POST' }),
+  unarchiveItem: (id) =>
+    request(`/api/items/${encodeURIComponent(id)}/unarchive`, { method: 'POST' }),
 };

@@ -135,6 +135,64 @@ def test_move_missing_item_is_404(sandbox):
     assert resp.status_code == 404
 
 
+def test_unarchive_archived_item_returns_to_pending_enriched(sandbox):
+    sandbox.seed(queue_id="a")  # default seed has enrichment set
+    sandbox.client.post("/api/items/a/move", json={"action": "archive"})
+
+    resp = sandbox.client.post("/api/items/a/unarchive")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "enriched"
+    assert resp.json()["captured"] == "2026-08-11T13:30:10-04:00"  # real age, not reset
+
+    assert not (sandbox.queue_dir / "archived" / "a.json").exists()
+    on_disk = json.loads((sandbox.queue_dir / "pending" / "a.json").read_text())
+    assert on_disk["status"] == "enriched"
+
+
+def test_unarchive_dismissed_item_returns_to_pending(sandbox):
+    sandbox.seed(queue_id="a")
+    sandbox.client.post("/api/items/a/move", json={"action": "dismiss"})
+
+    resp = sandbox.client.post("/api/items/a/unarchive")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "enriched"
+
+
+def test_unarchive_recomputes_pending_status_without_enrichment(sandbox):
+    sandbox.seed(queue_id="a", status="pending", enrichment=None)
+    sandbox.client.post("/api/items/a/move", json={"action": "archive"})
+
+    resp = sandbox.client.post("/api/items/a/unarchive")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "pending"
+
+
+def test_unarchive_filed_item_is_409(sandbox):
+    sandbox.seed(queue_id="a", category="idea", title="An idea")
+    sandbox.client.post("/api/items/a/move", json={"action": "keep"})
+
+    resp = sandbox.client.post("/api/items/a/unarchive")
+    assert resp.status_code == 409
+    # untouched - still filed, still archived
+    assert (sandbox.queue_dir / "archived" / "a.json").exists()
+
+
+def test_unarchive_pending_item_is_409(sandbox):
+    sandbox.seed(queue_id="a")
+    resp = sandbox.client.post("/api/items/a/unarchive")
+    assert resp.status_code == 409
+
+
+def test_unarchive_missing_item_is_404(sandbox):
+    resp = sandbox.client.post("/api/items/nope/unarchive")
+    assert resp.status_code == 404
+
+
+def test_unarchive_requires_auth(sandbox):
+    resp = sandbox.raw_client.post("/api/items/a/unarchive")
+    assert resp.status_code == 401
+
+
 def test_move_unknown_action_is_400(sandbox):
     sandbox.seed(queue_id="a")
     resp = sandbox.client.post("/api/items/a/move", json={"action": "delete"})
