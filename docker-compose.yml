@@ -15,6 +15,10 @@ services:
       # Tandoor push entirely.
       TANDOOR_URL: ${TANDOOR_URL:-}
       TANDOOR_API_TOKEN: ${TANDOOR_API_TOKEN:-}
+      # Optional - see .env.example. Leave unset in .env to skip the
+      # Seerr push entirely.
+      SEERR_URL: ${SEERR_URL:-}
+      SEERR_API_KEY: ${SEERR_API_KEY:-}
       # Required for item chat (see .env.example) - leave unset and chat
       # requests fail with a clear error, but nothing else is affected.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

@@ -557,6 +557,21 @@ Rules:
 - If the URL is a YouTube link, extract the video identifier. Put the identifier
   in `enrichment.embed`.
 
+Not in the original plan: "Keep in vault" on a `media` item whose top-level
+`media_type` is `tv` or `movie` (the classifier's schema-enforced field,
+not enrichment's free-text `structured.media_type`) also requests it in a
+self-hosted Seerr instance via `SEERR_URL`/`SEERR_API_KEY`
+(`backend/app/seerr.py`), best-effort like the Tandoor push below - a Seerr
+outage never blocks filing the note. Not literal notes: Seerr has nowhere
+to attach arbitrary text to a title, so this requests the title instead,
+the way a person would add it themselves. Matches by searching Seerr
+(TMDB-backed) by title and requiring the result's release/air year to
+match `enrichment.structured.year` - no year, or no result in that year,
+means skip rather than request the wrong title. `game` and `music` items
+have nothing to request and are skipped without a call. Built from Seerr's
+public API docs, not verified against a live instance; check the container
+logs after the first real "Keep in vault" on a movie or show.
+
 ### 9.3 Recipe conversion
 
 Convert a recipe item to a schema.org/Recipe object at processing time. Put the
@@ -793,12 +808,13 @@ needing to be hand-maintained here. One stage remains:
 
 Everything through Stage 5 is complete and live, plus Lists, Capture, and
 Re-enrich (all originally spec'd in 10.4/10.5 but not built until now) and
-Vault, Search, Chat, the New note view, and the Tandoor push (none of which
-were in the original plan - 10.4, 9.3). Chat is also the one place the
-interface calls the Gemini API directly (3.3), and re-enrich and New note
-are the two other places the interface writes into `queue\pending\`
-alongside the processor (10.6) - everything else the original plan
-describes is unchanged. Digest email (Stage 6, section 11) is the one thing
+Vault, Search, Chat, the New note view, and the Tandoor and Seerr pushes
+(none of which were in the original plan - 10.4, 9.2, 9.3). Chat is also
+the one place the interface calls the Gemini API directly (3.3), and
+re-enrich and New note are the two other places the interface writes into
+`queue\pending\` alongside the processor (10.6) - everything else the
+original plan describes is unchanged. Digest email (Stage 6, section 11) is
+the one thing
 not yet built.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates

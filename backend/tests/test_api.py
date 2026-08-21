@@ -302,6 +302,28 @@ def test_keep_non_recipe_never_calls_tandoor(sandbox, monkeypatch):
     assert called["n"] == 0
 
 
+def test_keep_media_succeeds_even_when_seerr_push_fails(sandbox, monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "push_media", lambda item: False)
+    sandbox.seed(queue_id="a", category="media", title="A show", media_type="tv")
+
+    resp = sandbox.client.post("/api/items/a/move", json={"action": "keep"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "filed"
+
+
+def test_keep_non_media_never_calls_seerr(sandbox, monkeypatch):
+    from app import main
+
+    called = {"n": 0}
+    monkeypatch.setattr(main, "push_media", lambda item: called.__setitem__("n", called["n"] + 1))
+    sandbox.seed(queue_id="a", category="idea", title="An idea")
+
+    sandbox.client.post("/api/items/a/move", json={"action": "keep"})
+    assert called["n"] == 0
+
+
 def test_chat_appends_user_and_model_messages(sandbox, monkeypatch):
     from app import main
 
