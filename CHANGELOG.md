@@ -4,6 +4,28 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-21 - Add Unarchive and a Share button (#13)
+
+### Summary
+
+- **Unarchive**: `POST /api/items/{id}/unarchive` moves an `archived` or `dismissed` item back to `queue/pending/`, recomputing `status` (`enriched` if the item has enrichment, else `pending`). `captured` is left untouched, so the item returns to the Inbox at its real age rather than looking freshly captured - confirmed in testing that an 11-day-old restored item correctly shows "Stale," not "New."
+  - `filed` items are permanent from this button and 409 if you try. "Keep in vault" already wrote a real Markdown file to the vault (and possibly pushed to Tandoor or Seerr), neither of which this can safely reverse.
+  - Archive was previously fully read-only (PROJECT.md 10.4); this is the one exception, and only for the two outcomes with no side effects to undo.
+- **Share**: a share icon on every item, active or archived - client-only, no backend request at all. Uses the Web Share API (`navigator.share`) to hand the item's title, summary (or body if unenriched), and original URL to another app on the phone. Falls back to copying the same text to the clipboard when the browser has no share sheet, or when the share target rejects for a reason other than the user cancelling.
+- `docs/PROJECT.md` updated in the same commit (10.4, 10.5, and 14).
+
+Both features were scoped with the user upfront given real design forks: Unarchive's exclusion of `filed` items (side effects can't be cleanly undone) and keeping the restored item's real `captured` timestamp rather than resetting it; Share's behavior given this is a single-user, VPN-only app where a "shareable link" wouldn't mean anything to send to someone else.
+
+### A real bug found and fixed along the way
+
+While testing the Share button's clipboard fallback, `@testing-library/user-event`'s `setup()` turned out to reset `navigator.clipboard` internally - stubbing it *before* `userEvent.setup()` silently gets clobbered, so the stub has to be set up *after*. Cost some debugging (jsdom actually implements a real, non-trivial Clipboard API these days, which is what made this so confusing at first) but is now the working pattern in `ShareButton.test.jsx`.
+
+### Test plan
+
+- Backend: 99 tests passing, including 7 new `test_api.py` tests for Unarchive (archived → pending recomputes to `enriched`, dismissed → pending, no-enrichment recomputes to `pending`, filed is 409 and stays untouched, a never-archived item is 409, missing item is 404, auth required).
+- Frontend: 82 tests passing, including new `UnarchiveBar.test.jsx`, `ShareButton.test.jsx`, and `shareText.test.js`, plus `ItemDetail.test.jsx` coverage confirming Unarchive shows for archived/dismissed but not filed or active items, and Share shows in both the active and archived states. Production `vite build` is clean.
+- End-to-end: verified against a running sandboxed stack (fake data, isolated queue dirs) via Playwright - unarchiving a dismissed item and confirming it lands back in the Inbox showing "Stale" (real age preserved), and the Share button's clipboard-fallback confirmation state (headless Chromium has no native share sheet to screenshot, so the fallback path is what's visually verified).
+
 ## 2026-08-21 - Add Seerr auto-request for kept movie/TV notes (#12)
 
 ### Summary
