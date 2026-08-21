@@ -9,7 +9,9 @@ import ActionBar from '../components/ActionBar';
 import ChatPanel from '../components/ChatPanel';
 import ItemLabel from '../components/ItemLabel';
 import ReenrichButton from '../components/ReenrichButton';
+import ShareButton from '../components/ShareButton';
 import StarIcon from '../components/StarIcon';
+import UnarchiveBar from '../components/UnarchiveBar';
 import Prose from '../components/Prose';
 import { categoryColors, categoryLabel, isEnrichableCategory } from '../categories';
 import { isNewItem, isStaleItem } from '../itemLabels';
@@ -293,6 +295,10 @@ export default function ItemDetail() {
   // moved to archived/filed/dismissed, hide the actions that only make
   // sense for something still being triaged.
   const isArchived = ['archived', 'filed', 'dismissed'].includes(item.status);
+  // Filed stays permanent from here - the vault note (and any Tandoor/Seerr
+  // push) already happened outside this system and Unarchive can't safely
+  // reverse either, so it only offers to undo the other two outcomes.
+  const canUnarchive = item.status === 'archived' || item.status === 'dismissed';
 
   if (editing) {
     return (
@@ -324,34 +330,37 @@ export default function ItemDetail() {
         >
           &larr; {isArchived ? 'Archive' : 'Inbox'}
         </Link>
-        {!isArchived && (
-          <div className="flex items-center gap-2">
-            <button
-              aria-label={item.important ? 'Unflag as important' : 'Flag as important'}
-              onClick={toggleImportant}
-              disabled={togglingImportant}
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50"
-              style={{
-                background: 'var(--color-card-bg)',
-                border: '1px solid var(--color-border)',
-                color: item.important ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-              }}
-            >
-              <StarIcon filled={item.important} size={15} />
-            </button>
-            <button
-              aria-label="Edit item"
-              onClick={() => setEditing(true)}
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
-            >
-              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
-                <line x1="12" y1="5" x2="15" y2="8" />
-              </svg>
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <ShareButton item={item} />
+          {!isArchived && (
+            <>
+              <button
+                aria-label={item.important ? 'Unflag as important' : 'Flag as important'}
+                onClick={toggleImportant}
+                disabled={togglingImportant}
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50"
+                style={{
+                  background: 'var(--color-card-bg)',
+                  border: '1px solid var(--color-border)',
+                  color: item.important ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                }}
+              >
+                <StarIcon filled={item.important} size={15} />
+              </button>
+              <button
+                aria-label="Edit item"
+                onClick={() => setEditing(true)}
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+              >
+                <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
+                  <line x1="12" y1="5" x2="15" y2="8" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
       </div>
       <div className="px-5 pb-4 flex items-start gap-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />
@@ -394,6 +403,7 @@ export default function ItemDetail() {
       </div>
 
       {!isArchived && <ActionBar queueId={item.queue_id} />}
+      {canUnarchive && <UnarchiveBar queueId={item.queue_id} />}
     </div>
   );
 }

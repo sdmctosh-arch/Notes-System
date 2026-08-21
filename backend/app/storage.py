@@ -183,6 +183,31 @@ def request_reenrich(queue_id: str) -> None:
     marker.touch()
 
 
+def unarchive_item(queue_id: str) -> QueueItem:
+    # The reverse of move_to_archived, but narrower: only for archived or
+    # dismissed - a filed item already wrote a real vault Markdown note
+    # (and possibly pushed to Tandoor/Seerr), neither of which this can
+    # safely undo, so Unarchive leaves it alone rather than pretending to.
+    # `captured` is left untouched - it goes back to the Inbox at its real
+    # age, not disguised as a fresh capture.
+    path = QUEUE_ARCHIVED_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        if (QUEUE_PENDING_DIR / f"{queue_id}.json").is_file():
+            raise InvalidMoveError(f"{queue_id} is not archived")
+        raise ItemNotFoundError(queue_id)
+
+    item = _read_item(path)
+    if item.status == "filed":
+        raise InvalidMoveError(f"{queue_id} is filed and can't be unarchived")
+
+    new_status = "enriched" if item.enrichment else "pending"
+    updated = item.model_copy(update={"status": new_status})
+    target = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    _write_item_atomic(target, updated)
+    path.unlink()
+    return updated
+
+
 def move_to_archived(queue_id: str, new_status: str) -> QueueItem:
     # 10.6: the interface moves files from queue\pending\ to
     # queue\archived\ only - so a move is only valid starting from pending.
