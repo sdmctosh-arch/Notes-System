@@ -4,6 +4,25 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-21 - Add Seerr auto-request for kept movie/TV notes (#12)
+
+### Summary
+
+- "Keep in vault" on a `media` note whose classified `media_type` is `movie` or `tv` now requests it in a self-hosted Seerr instance - the same best-effort, never-blocks-filing pattern already used for the Tandoor recipe push.
+- Not literal notes: Seerr has nowhere to attach arbitrary text to a title. Its only free-text mechanism is the Issue/comment system, which is meant for reporting playback problems and requires the media to already exist in Seerr's own DB (a `mediaId` from an internal `MediaInfo` row, not a bare TMDB id) - a poor fit for a personal "watch this" note, and it would show up in Seerr's admin Issues panel as if reporting a real problem. Requesting the title is the honest equivalent of what a person would do themselves.
+- Matches by searching Seerr's `/search` endpoint (TMDB-backed) by title, filtering to the right media type, and requiring the result's release/air year to match what enrichment found (`enrichment.structured.year`). No year, or no result in that year, means it skips rather than guessing and requesting the wrong title into your Radarr/Sonarr queue.
+- Uses the classifier's schema-enforced `item.media_type` (`tv`/`movie`/`game`/`music`/`other`, set at classification time - see `classify-prompt.md`) rather than enrichment's free-text `structured.media_type`, since it's the more reliable signal and is always present for a `media` item regardless of whether enrichment succeeded.
+- New `SEERR_URL`/`SEERR_API_KEY` env vars, wired into `docker-compose.yml` and documented in `.env.example` the same way as the existing `TANDOOR_URL`/`TANDOOR_API_TOKEN`. Leaving both unset skips the push entirely.
+- `docs/PROJECT.md` updated in the same commit (9.2 documents the push and its matching rule; 14's summary mentions it alongside the Tandoor push).
+
+Like the Tandoor integration, this is built from Seerr's public OpenAPI spec, not verified against a live instance - worth checking the container logs after the first real "Keep in vault" on a movie or show.
+
+### Test plan
+
+- Backend: 92 tests passing, including 10 new `test_seerr.py` tests (not configured, non-movie/tv media types skipped without a call, no year from enrichment skipped, correct year-matched result picked over a wrong-year or wrong-media-type result, movie request omits `seasons` while TV requests `seasons: "all"`, no year-matched search result skips, and that both a search failure and a request failure are swallowed) plus 2 new `test_api.py` tests verifying `move_item`'s "keep" wiring (a failed Seerr push still succeeds in filing the note, and a non-`media` category never calls Seerr).
+- `docker compose config` validates cleanly with the new env vars wired through.
+- Frontend is untouched - this is a fully automatic backend push with no new UI surface, so the existing 67 frontend tests are unaffected.
+
 ## 2026-08-21 - Add New/Stale labels, important flag, re-enrich, and New note (#11)
 
 ### Summary
