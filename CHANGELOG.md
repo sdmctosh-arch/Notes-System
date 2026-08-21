@@ -4,6 +4,29 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-21 - Replace star with Pin; add welcome header, drawer nav, desktop split view, and per-category art placeholders (#14)
+
+### Summary
+
+Implements the approved Turn 1 design scope from the Claude Design mockup import:
+
+- **Pinned** replaces the important/star toggle outright — backend (`pinned` field, `PATCH /api/items/{id}/pin`) and frontend (`PinIcon`, `api.setPinned`), with matching test/doc updates. `StarIcon.jsx` is deleted.
+- **Welcome header** — a time-of-day greeting ("Good morning/afternoon/evening", computed client-side, no stored name) with a new/total note count, and Pinned/To review grouping in the Inbox list.
+- **Hamburger drawer nav** — the mobile Inbox's row of nav icons is replaced by a slide-in drawer (Inbox/Lists/Vault/Archive, dark-mode switch, log out) plus a floating "+" for New note. `LogoutButton.jsx` and `ThemeToggle.jsx` are deleted since the drawer absorbed their behavior and nothing else used them.
+- **Desktop two-pane split view** — at 1024px+ the Inbox becomes an icon rail + list pane + detail pane layout (`DesktopRail.jsx`, `useIsDesktop.js`). Selecting a row doesn't navigate — it just changes which item the detail pane shows (`ItemDetail`'s new `id`/`embedded` props) — so the list stays visible. Every other view (Archive, Vault, Search) is unchanged on both desktop and mobile.
+- **Per-category art placeholders** — `media` and `recipe` items get a labelled striped placeholder slot (`ArtPlaceholder.jsx`) instead of the category badge: a 2:3 "poster" / 1:1 "dish" thumbnail in the list, and a 16:9 backdrop (media) / 4:3 inset (recipe) in the detail view, standing in until a real image source is wired up.
+
+`docs/PROJECT.md` is updated in this PR for all of the above (§10.4, §10.5, §14), per CLAUDE.md's rule to keep the spec in sync with the change.
+
+### Test plan
+
+- [x] Backend: `pytest -q` — 99 passed
+- [x] Frontend: `npm test -- --run` — 94 passed (18 test files, including new coverage for the pin rename, desktop split view, and art placeholders)
+- [x] `npm run lint` — no new warnings
+- [x] Manual Playwright verification against a sandboxed backend/frontend (mobile Inbox with greeting/pinned grouping/drawer, desktop two-pane split view, media/recipe art placeholders in light and dark mode) — screenshots reviewed with the user during the session
+
+https://claude.ai/code/session_01HqRne1xcpbgJit6UrdXkcu
+
 ## 2026-08-21 - Add Unarchive and a Share button (#13)
 
 ### Summary
