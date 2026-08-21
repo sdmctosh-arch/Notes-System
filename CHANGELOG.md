@@ -4,6 +4,30 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-21 - Add New/Stale labels, important flag, re-enrich, and New note (#11)
+
+### Summary
+
+Four features, built and verified one at a time (each with its own commit):
+
+- **"New" / "Stale" labels** - a card/detail label computed client-side from the item's existing `captured` timestamp: "New" for the first 24 hours, "Stale" once 7 days pass with no decision. No backend change - see `frontend/src/itemLabels.js`.
+- **Flag as important** - a star toggle on item detail, pending-only like every other mutation. New `PATCH /api/items/{id}/important` endpoint and `important` field on the queue item; the star still shows read-only once an item is archived/filed.
+- **Re-enrich** - implements the request-file mechanism PROJECT.md 10.5 already specified but neither side had built. The interface writes an empty `<queue_id>.reenrich` marker into `queue/pending/` (a documented exception to "the processor creates files there," alongside chat's exception to "the interface doesn't call Gemini"). The processor's new `Invoke-ReenrichRequests` (in `Invoke-NoteProcessor-v2.ps1`) scans for markers every run, redoes enrichment, and removes the marker either way - a failed retry leaves the item completely unchanged rather than wiping a working enrichment.
+- **New note** - a "+" on the Inbox header opens a form (category, optional title, body) and `POST /api/items` writes a queue item straight into `queue/pending/`, skipping classification since the user already picked the category. Marked `manual: true` (no real capture file behind it, so "View original capture" is hidden). For any enrichable category, creation also drops a `.reenrich` marker, reusing the mechanism above, so the note gets enriched on the processor's next run.
+
+`docs/PROJECT.md` is updated in the same commit as each change per CLAUDE.md's rule 8 (10.4, 10.5, 10.6, and 14 all touched).
+
+### A real bug found and fixed along the way
+
+While verifying re-enrich's processor-side atomic write in a pwsh sandbox, `[IO.File]::Replace($tmp, $target, $null)` threw `"The value cannot be an empty string (Parameter 'path')"` on this platform, even though `$null` is meant to mean "no backup file." Switched to `Move-Item -Force`, which is atomic (same-directory rename) and actually works here. Documented in CLAUDE.md's PowerShell notes so it isn't rediscovered.
+
+### Test plan
+
+- Backend: 82 tests passing (`test_api.py` covers the important/reenrich/create-item endpoints: happy path, 404s for missing/archived items, auth requirement, category validation, and that a task category like `todo` never gets a re-enrich marker).
+- Frontend: 67 tests passing (`itemLabels.test.js`, `ItemDetail.test.jsx`, `Inbox.test.jsx`, `ReenrichButton.test.jsx`, `NewItem.test.jsx`). Production `vite build` is clean.
+- Processor: `Invoke-NoteProcessor-v2.ps1` verified end-to-end in a pwsh sandbox against a local stub standing in for the Interactions API (via a new `GEMINI_INTERACTIONS_URL` override, mirroring the interface's existing one) - success, an orphaned marker, `-DryRun`, a task-category item (dropped without a call), and a network failure (item left unchanged) all behave as designed.
+- End-to-end: each feature verified against a running sandboxed stack (fake data, isolated queue/vault dirs) via Playwright, including visual confirmation via screenshots - the star toggle in both states, the re-enrich button and its confirmation, and the full New note flow from form to item detail to Inbox listing.
+
 ## 2026-08-20 - Add live follow-up chat on item detail (#10)
 
 ### Summary
