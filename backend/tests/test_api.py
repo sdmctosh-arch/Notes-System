@@ -449,35 +449,35 @@ def test_chat_requires_auth(sandbox):
     assert resp.status_code == 401
 
 
-def test_set_important_true_and_false(sandbox):
+def test_set_pinned_true_and_false(sandbox):
     sandbox.seed(queue_id="a")
 
-    resp = sandbox.client.patch("/api/items/a/important", json={"important": True})
+    resp = sandbox.client.patch("/api/items/a/pin", json={"pinned": True})
     assert resp.status_code == 200
-    assert resp.json()["important"] is True
+    assert resp.json()["pinned"] is True
     on_disk = json.loads((sandbox.queue_dir / "pending" / "a.json").read_text())
-    assert on_disk["important"] is True
+    assert on_disk["pinned"] is True
 
-    resp = sandbox.client.patch("/api/items/a/important", json={"important": False})
+    resp = sandbox.client.patch("/api/items/a/pin", json={"pinned": False})
     assert resp.status_code == 200
-    assert resp.json()["important"] is False
+    assert resp.json()["pinned"] is False
 
 
-def test_set_important_404_for_missing_item(sandbox):
-    resp = sandbox.client.patch("/api/items/nope/important", json={"important": True})
+def test_set_pinned_404_for_missing_item(sandbox):
+    resp = sandbox.client.patch("/api/items/nope/pin", json={"pinned": True})
     assert resp.status_code == 404
 
 
-def test_set_important_404_for_archived_item(sandbox):
+def test_set_pinned_404_for_archived_item(sandbox):
     sandbox.seed(queue_id="a")
     sandbox.client.post("/api/items/a/move", json={"action": "archive"})
 
-    resp = sandbox.client.patch("/api/items/a/important", json={"important": True})
+    resp = sandbox.client.patch("/api/items/a/pin", json={"pinned": True})
     assert resp.status_code == 404
 
 
-def test_set_important_requires_auth(sandbox):
-    resp = sandbox.raw_client.patch("/api/items/a/important", json={"important": True})
+def test_set_pinned_requires_auth(sandbox):
+    resp = sandbox.raw_client.patch("/api/items/a/pin", json={"pinned": True})
     assert resp.status_code == 401
 
 

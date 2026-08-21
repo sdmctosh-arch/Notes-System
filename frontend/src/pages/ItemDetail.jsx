@@ -10,8 +10,9 @@ import ChatPanel from '../components/ChatPanel';
 import ItemLabel from '../components/ItemLabel';
 import ReenrichButton from '../components/ReenrichButton';
 import ShareButton from '../components/ShareButton';
-import StarIcon from '../components/StarIcon';
+import PinIcon from '../components/PinIcon';
 import UnarchiveBar from '../components/UnarchiveBar';
+import ArtPlaceholder, { STRIPE } from '../components/ArtPlaceholder';
 import Prose from '../components/Prose';
 import { categoryColors, categoryLabel, isEnrichableCategory } from '../categories';
 import { isNewItem, isStaleItem } from '../itemLabels';
@@ -51,6 +52,50 @@ function OriginalLink({ url }) {
   );
 }
 
+// Full-bleed backdrop above the header, in place of a TMDB backdrop image -
+// see ArtPlaceholder. Only media gets a hero; recipe's art sits inline in
+// the body instead (RecipeFigure below), matching the design's split
+// between "backdrop behind the title" and "photo beside the ingredients".
+function MediaHero({ item }) {
+  const m = item.enrichment?.structured || {};
+  const caption = [item.enrichment?.kind === 'media_info' ? m.media_type : null, m.year].filter(Boolean).join(' · ');
+  return (
+    <div className="relative w-full h-[200px] flex items-center justify-center" style={{ background: STRIPE }}>
+      <span
+        className="uppercase"
+        style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 500, fontSize: 9.5, letterSpacing: '0.14em', color: 'var(--color-stripe-text)' }}
+      >
+        BACKDROP · 16:9
+      </span>
+      <div
+        className="absolute inset-x-0 bottom-0 h-2/3"
+        style={{ background: 'linear-gradient(to top, oklch(0.2 0.02 60 / 0.78), oklch(0.2 0.02 60 / 0))' }}
+      />
+      <div className="absolute left-4 right-4 bottom-3 flex flex-col gap-1.5">
+        <div
+          className="h-9 w-48 flex items-center justify-center px-3 rounded"
+          style={{ border: '1px dashed oklch(0.99 0.005 80 / 0.55)', color: 'oklch(0.99 0.005 80 / 0.85)', fontSize: 9 }}
+        >
+          TITLE LOGO
+        </div>
+        {caption && (
+          <div className="uppercase" style={{ color: 'oklch(0.99 0.005 80 / 0.85)', fontSize: 10, letterSpacing: '0.1em' }}>
+            {caption}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RecipeFigure() {
+  return (
+    <div className="mb-5">
+      <ArtPlaceholder aspectRatio="4 / 3" radius={12} label="DISH · 4:3" className="w-full max-w-[340px]" style={{ border: '1px solid var(--color-border)' }} />
+    </div>
+  );
+}
+
 function Body({ item }) {
   const e = item.enrichment;
 
@@ -72,6 +117,7 @@ function Body({ item }) {
     const r = e.structured || {};
     return (
       <>
+        <RecipeFigure />
         {r.recipeIngredient && (
           <>
             <div className="font-serif font-semibold text-[15px] mb-2.5" style={{ color: 'var(--color-text-primary)' }}>
@@ -243,23 +289,27 @@ function EditForm({ item, onSaved, onCancel }) {
   );
 }
 
-export default function ItemDetail() {
-  const { id } = useParams();
+// embedded=true is the desktop two-pane right pane (Inbox.jsx): no outer
+// page chrome (max-w-md wrapper, back link), id comes from props instead
+// of the route since there's no route change when picking a row.
+export default function ItemDetail({ id: propId, embedded = false, onActioned }) {
+  const { id: routeId } = useParams();
+  const id = propId ?? routeId;
   const [item, setItem] = useState(null);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [togglingImportant, setTogglingImportant] = useState(false);
+  const [togglingPinned, setTogglingPinned] = useState(false);
   const dark = useDarkMode();
 
-  async function toggleImportant() {
-    setTogglingImportant(true);
+  async function togglePinned() {
+    setTogglingPinned(true);
     try {
-      setItem(await api.setImportant(item.queue_id, !item.important));
+      setItem(await api.setPinned(item.queue_id, !item.pinned));
     } catch {
-      // Not worth a dedicated error banner for a one-tap toggle - the star
+      // Not worth a dedicated error banner for a one-tap toggle - the pin
       // simply doesn't flip, and the user can just tap it again.
     } finally {
-      setTogglingImportant(false);
+      setTogglingPinned(false);
     }
   }
 
@@ -299,10 +349,16 @@ export default function ItemDetail() {
   // push) already happened outside this system and Unarchive can't safely
   // reverse either, so it only offers to undo the other two outcomes.
   const canUnarchive = item.status === 'archived' || item.status === 'dismissed';
+  // The category badge and the hero/figure art both signal "media" or
+  // "recipe" - showing both is redundant, so the badge steps aside for
+  // whichever category has its own art (matches the list row - InboxRow.jsx).
+  const hasArt = item.category === 'media' || item.category === 'recipe';
+
+  const pageClass = embedded ? 'h-full flex flex-col' : 'max-w-md mx-auto min-h-dvh flex flex-col';
 
   if (editing) {
     return (
-      <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+      <div className={pageClass} style={{ background: 'var(--color-bg)' }}>
         <div className="px-5 pt-6 pb-2">
           <div className="text-[13px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
             Editing
@@ -321,31 +377,35 @@ export default function ItemDetail() {
   }
 
   return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+    <div className={pageClass} style={{ background: 'var(--color-bg)' }}>
       <div className="px-5 pt-6 pb-2 flex items-center justify-between">
-        <Link
-          to={isArchived ? '/archive' : '/'}
-          className="text-[13px] inline-flex items-center gap-1"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          &larr; {isArchived ? 'Archive' : 'Inbox'}
-        </Link>
+        {embedded ? (
+          <div />
+        ) : (
+          <Link
+            to={isArchived ? '/archive' : '/'}
+            className="text-[13px] inline-flex items-center gap-1"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            &larr; {isArchived ? 'Archive' : 'Inbox'}
+          </Link>
+        )}
         <div className="flex items-center gap-2">
           <ShareButton item={item} />
           {!isArchived && (
             <>
               <button
-                aria-label={item.important ? 'Unflag as important' : 'Flag as important'}
-                onClick={toggleImportant}
-                disabled={togglingImportant}
+                aria-label={item.pinned ? 'Unpin' : 'Pin'}
+                onClick={togglePinned}
+                disabled={togglingPinned}
                 className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50"
                 style={{
                   background: 'var(--color-card-bg)',
                   border: '1px solid var(--color-border)',
-                  color: item.important ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                  color: item.pinned ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                 }}
               >
-                <StarIcon filled={item.important} size={15} />
+                <PinIcon filled={item.pinned} size={15} />
               </button>
               <button
                 aria-label="Edit item"
@@ -362,8 +422,9 @@ export default function ItemDetail() {
           )}
         </div>
       </div>
+      {item.category === 'media' && <MediaHero item={item} />}
       <div className="px-5 pb-4 flex items-start gap-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
-        <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />
+        {!hasArt && <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />}
         <div className="min-w-0 grow">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: colors.label }}>
@@ -372,9 +433,9 @@ export default function ItemDetail() {
             {!isArchived && (isNewItem(item) ? <ItemLabel kind="new" /> : isStaleItem(item) ? <ItemLabel kind="stale" /> : null)}
           </div>
           <div className="flex items-start gap-1.5 mt-0.5">
-            {item.important && (
-              <span className="shrink-0 mt-1.5" style={{ color: 'var(--color-accent)' }} aria-label="Important">
-                <StarIcon filled size={14} />
+            {item.pinned && (
+              <span className="shrink-0 mt-1.5" style={{ color: 'var(--color-accent)' }} aria-label="Pinned">
+                <PinIcon filled size={14} />
               </span>
             )}
             <div className="font-serif font-semibold text-xl leading-tight" style={{ color: 'var(--color-text-primary)' }}>
@@ -402,7 +463,7 @@ export default function ItemDetail() {
         {!isArchived && <ChatPanel item={item} onUpdate={setItem} />}
       </div>
 
-      {!isArchived && <ActionBar queueId={item.queue_id} />}
+      {!isArchived && <ActionBar queueId={item.queue_id} onDone={embedded ? onActioned : undefined} />}
       {canUnarchive && <UnarchiveBar queueId={item.queue_id} />}
     </div>
   );

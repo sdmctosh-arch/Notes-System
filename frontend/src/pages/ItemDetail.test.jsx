@@ -9,7 +9,7 @@ vi.mock('../api', () => ({
   api: {
     getItem: vi.fn(),
     updateItem: vi.fn(),
-    setImportant: vi.fn(),
+    setPinned: vi.fn(),
     requestReenrich: vi.fn(),
     unarchiveItem: vi.fn(),
   },
@@ -26,7 +26,7 @@ function baseItem(overrides) {
     status: 'enriched',
     enrichment: null,
     chat: [],
-    important: false,
+    pinned: false,
     manual: false,
     ...overrides,
   };
@@ -216,31 +216,31 @@ describe('ItemDetail', () => {
 
   const hoursAgo = (h) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
 
-  it('flags an item as important and shows the filled star once it reloads', async () => {
+  it('pins an item and shows the filled pin once it reloads', async () => {
     api.getItem.mockResolvedValueOnce(
       baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
     );
-    api.setImportant.mockResolvedValueOnce(
-      baseItem({ important: true, enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    api.setPinned.mockResolvedValueOnce(
+      baseItem({ pinned: true, enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
     );
     const user = userEvent.setup();
 
     renderDetail();
     await screen.findByText('Pier 66 laundry');
-    expect(screen.queryByLabelText('Important')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Pinned')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Flag as important' }));
+    await user.click(screen.getByRole('button', { name: 'Pin' }));
 
-    expect(api.setImportant).toHaveBeenCalledWith('abc123', true);
-    await waitFor(() => expect(screen.getByLabelText('Important')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Unflag as important' })).toBeInTheDocument();
+    expect(api.setPinned).toHaveBeenCalledWith('abc123', true);
+    await waitFor(() => expect(screen.getByLabelText('Pinned')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Unpin' })).toBeInTheDocument();
   });
 
-  it('does not show the important toggle on an archived item, but still shows the star if flagged', async () => {
+  it('does not show the pin toggle on an archived item, but still shows the pin mark if pinned', async () => {
     api.getItem.mockResolvedValueOnce(
       baseItem({
         status: 'filed',
-        important: true,
+        pinned: true,
         enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
       }),
     );
@@ -248,8 +248,8 @@ describe('ItemDetail', () => {
     renderDetail();
 
     await screen.findByText('Pier 66 laundry');
-    expect(screen.queryByRole('button', { name: /flag as important/i })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Important')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^(pin|unpin)$/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Pinned')).toBeInTheDocument();
   });
 
   it('shows a "New" label for an item captured within 24 hours, and none once it ages past a week', async () => {
@@ -318,6 +318,64 @@ describe('ItemDetail', () => {
 
     expect(await screen.findByText("Enrichment didn't complete for this item.")).toBeInTheDocument();
     expect(screen.getByText('Lookup if Pier 66 has laundry.')).toBeInTheDocument();
+  });
+
+  it('shows a backdrop hero placeholder for a media item, and hides the category badge', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        category: 'media',
+        title: 'Dune: Part Two',
+        enrichment: {
+          kind: 'media_info',
+          summary: 'A sci-fi film.',
+          detail: '',
+          citations: [],
+          structured: { year: 2024, media_type: 'movie' },
+        },
+      }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Dune: Part Two');
+    expect(screen.getByText('BACKDROP · 16:9')).toBeInTheDocument();
+    expect(screen.getByText('TITLE LOGO')).toBeInTheDocument();
+    expect(screen.getByText('movie · 2024')).toBeInTheDocument();
+  });
+
+  it('shows a dish figure placeholder inline for a recipe item, and hides the category badge', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        category: 'recipe',
+        title: 'Arroz con Gandules',
+        enrichment: {
+          kind: 'recipe',
+          summary: '',
+          detail: '',
+          citations: [],
+          structured: { recipeIngredient: ['2 cups rice'], recipeInstructions: ['Saute sofrito'] },
+        },
+      }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Arroz con Gandules');
+    expect(screen.getByText('DISH · 4:3')).toBeInTheDocument();
+    expect(screen.queryByText('BACKDROP · 16:9')).not.toBeInTheDocument();
+  });
+
+  it('shows the ordinary category badge for a category with no art (e.g. lookup)', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByText('BACKDROP · 16:9')).not.toBeInTheDocument();
+    expect(screen.queryByText('DISH · 4:3')).not.toBeInTheDocument();
+    expect(screen.getByText('Lookup')).toBeInTheDocument();
   });
 
   it('shows the login form on a 401', async () => {

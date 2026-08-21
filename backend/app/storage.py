@@ -126,14 +126,14 @@ def add_chat_messages(queue_id: str, messages: list[ChatMessage]) -> QueueItem:
     return updated
 
 
-def set_important(queue_id: str, important: bool) -> QueueItem:
+def set_pinned(queue_id: str, pinned: bool) -> QueueItem:
     # Pending-only, the same as chat - once an item is archived/filed/
     # dismissed the interface treats it as read-only.
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         raise ItemNotFoundError(queue_id)
     item = _read_item(path)
-    updated = item.model_copy(update={"important": important})
+    updated = item.model_copy(update={"pinned": pinned})
     _write_item_atomic(path, updated)
     return updated
 
@@ -175,7 +175,7 @@ def request_reenrich(queue_id: str) -> None:
     # it only writes a marker file. The processor picks it up on its next
     # run, redoes pass 2, and removes the marker either way (see
     # Invoke-ReenrichRequests in Invoke-NoteProcessor-v2.ps1). Pending-only,
-    # the same as chat and set_important - an archived item is read-only.
+    # the same as chat and set_pinned - an archived item is read-only.
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         raise ItemNotFoundError(queue_id)

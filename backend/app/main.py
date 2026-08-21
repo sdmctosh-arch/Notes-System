@@ -14,10 +14,10 @@ from app.models import (
     CaptureContent,
     ChatMessage,
     ChatRequest,
-    ImportantRequest,
     ItemUpdate,
     MoveRequest,
     NewItemRequest,
+    PinRequest,
     QueueItem,
     SearchResult,
     VaultNoteContent,
@@ -178,18 +178,18 @@ def unarchive_item(queue_id: str, _=Depends(auth.require_auth)):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.patch("/api/items/{queue_id}/important", response_model=QueueItem)
-def set_item_important(queue_id: str, body: ImportantRequest, _=Depends(auth.require_auth)):
+@app.patch("/api/items/{queue_id}/pin", response_model=QueueItem)
+def set_item_pinned(queue_id: str, body: PinRequest, _=Depends(auth.require_auth)):
     # Pending-only, the same as chat - an archived item is read-only.
     try:
-        return storage.set_important(queue_id, body.important)
+        return storage.set_pinned(queue_id, body.pinned)
     except ItemNotFoundError:
         raise HTTPException(status_code=404, detail=f"No item {queue_id}")
 
 
 @app.post("/api/items/{queue_id}/reenrich", status_code=202)
 def request_reenrich(queue_id: str, _=Depends(auth.require_auth)):
-    # 202, not 200 with the updated item: unlike chat/important, nothing
+    # 202, not 200 with the updated item: unlike chat/pin, nothing
     # about the item changes here - only the processor, on its next run,
     # actually redoes the enrichment (PROJECT.md 10.5).
     try:

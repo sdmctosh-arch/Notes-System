@@ -1,9 +1,19 @@
 import { Link } from 'react-router-dom';
 import CategoryBadge from './CategoryBadge';
 import ItemLabel from './ItemLabel';
-import StarIcon from './StarIcon';
+import PinIcon from './PinIcon';
+import ArtPlaceholder from './ArtPlaceholder';
 import { categoryLabel } from '../categories';
 import { isNewItem, isStaleItem } from '../itemLabels';
+
+// Categories with their own art get a placeholder image slot instead of
+// the plain icon badge, sized to match their detail-page treatment: media
+// as a 2:3 poster, recipe as a 1:1 dish thumb. See ItemDetail.jsx for the
+// matching hero (media) / figure (recipe) detail-page slots.
+const ROW_ART = {
+  media: { width: 56, height: 84, radius: 8, label: 'POSTER\n2:3' },
+  recipe: { width: 64, height: 64, radius: 10, label: 'DISH\n1:1' },
+};
 
 function timeAgo(iso) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -15,26 +25,39 @@ function timeAgo(iso) {
   return `${days}d ago`;
 }
 
-export default function InboxRow({ item }) {
+// Plain <Link> everywhere (mobile Inbox, Archive, the desktop rest-of-list
+// scroll) except the desktop two-pane list, which passes onSelect to pick
+// the item into the right-hand pane instead of navigating away from it.
+export default function InboxRow({ item, onSelect, selected }) {
   const preview = item.enrichment?.summary || item.body || '';
   const label = isNewItem(item) ? 'new' : isStaleItem(item) ? 'stale' : null;
+  const art = ROW_ART[item.category];
+  const Tag = onSelect ? 'button' : Link;
+  const tagProps = onSelect
+    ? { type: 'button', onClick: () => onSelect(item) }
+    : { to: `/items/${encodeURIComponent(item.queue_id)}` };
+
   return (
-    <Link
-      to={`/items/${encodeURIComponent(item.queue_id)}`}
-      className="flex items-start gap-3 rounded-2xl border p-3.5 hover:opacity-90 transition-opacity"
+    <Tag
+      {...tagProps}
+      className="flex items-start gap-3 rounded-2xl border p-3.5 hover:opacity-90 transition-opacity w-full text-left"
       style={{
-        background: 'var(--color-card-bg)',
+        background: selected ? 'var(--color-sel)' : 'var(--color-card-bg)',
         borderColor: 'var(--color-border)',
         boxShadow: 'var(--color-card-shadow)',
       }}
     >
-      <CategoryBadge category={item.category} />
+      {art ? (
+        <ArtPlaceholder width={art.width} height={art.height} radius={art.radius} label={art.label} />
+      ) : (
+        <CategoryBadge category={item.category} />
+      )}
       <div className="min-w-0 grow">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-1.5 min-w-0">
-            {item.important && (
-              <span className="shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} aria-label="Important">
-                <StarIcon filled size={13} />
+            {item.pinned && (
+              <span className="shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} aria-label="Pinned">
+                <PinIcon filled size={13} />
               </span>
             )}
             <div className="font-serif font-semibold text-base leading-tight" style={{ color: 'var(--color-text-primary)' }}>
@@ -53,6 +76,6 @@ export default function InboxRow({ item }) {
           {categoryLabel(item.category)} &middot; {timeAgo(item.captured)}
         </div>
       </div>
-    </Link>
+    </Tag>
   );
 }
