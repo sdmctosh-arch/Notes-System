@@ -1,10 +1,12 @@
 import json
 import os
+import secrets
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from app.config import QUEUE_ARCHIVED_DIR, QUEUE_PENDING_DIR
-from app.models import ChatMessage, QueueItem
+from app.models import TASK_CATEGORIES, ChatMessage, QueueItem
 
 
 class ItemNotFoundError(Exception):
@@ -122,6 +124,63 @@ def add_chat_messages(queue_id: str, messages: list[ChatMessage]) -> QueueItem:
     updated = item.model_copy(update={"chat": item.chat + messages})
     _write_item_atomic(path, updated)
     return updated
+
+
+def set_important(queue_id: str, important: bool) -> QueueItem:
+    # Pending-only, the same as chat - once an item is archived/filed/
+    # dismissed the interface treats it as read-only.
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        raise ItemNotFoundError(queue_id)
+    item = _read_item(path)
+    updated = item.model_copy(update={"important": important})
+    _write_item_atomic(path, updated)
+    return updated
+
+
+def create_item(category: str, title: str | None, body: str) -> QueueItem:
+    # PROJECT.md 10.5: a note added directly in the interface, not from the
+    # phone - it has no capture file behind it (capture_id == queue_id, a
+    # synthetic id, not a real Archive\Captures\*.md filename), so `manual`
+    # marks it for the client. A third documented exception to "the
+    # processor creates files in queue\pending\ only" (3.3's chat exception,
+    # 10.6's reenrich-marker exception, and now this).
+    now = datetime.now().astimezone()
+    queue_id = "manual-{0}-{1}".format(now.strftime("%Y%m%d-%H%M%S"), secrets.token_hex(3))
+    item = QueueItem(
+        queue_id=queue_id,
+        capture_id=queue_id,
+        category=category,
+        title=title,
+        body=body,
+        captured=now.isoformat(),
+        created=now.isoformat(),
+        status="pending",
+        enrichment=None,
+        processor_version="manual",
+        manual=True,
+    )
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    _write_item_atomic(path, item)
+    if category not in TASK_CATEGORIES:
+        # Same request-file mechanism as the Re-enrich action (10.5) - the
+        # processor enriches this on its next run within a few minutes,
+        # exactly as if it had come in from the phone.
+        (QUEUE_PENDING_DIR / f"{queue_id}.reenrich").touch()
+    return item
+
+
+def request_reenrich(queue_id: str) -> None:
+    # PROJECT.md 10.5: the interface must not call the Gemini API for this -
+    # it only writes a marker file. The processor picks it up on its next
+    # run, redoes pass 2, and removes the marker either way (see
+    # Invoke-ReenrichRequests in Invoke-NoteProcessor-v2.ps1). Pending-only,
+    # the same as chat and set_important - an archived item is read-only.
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        raise ItemNotFoundError(queue_id)
+    marker = QUEUE_PENDING_DIR / f"{queue_id}.reenrich"
+    marker.touch()
 
 
 def move_to_archived(queue_id: str, new_status: str) -> QueueItem:

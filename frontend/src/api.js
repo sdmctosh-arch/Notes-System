@@ -18,6 +18,7 @@ export const api = {
     return request(`/api/items${qs ? `?${qs}` : ''}`);
   },
   getItem: (id) => request(`/api/items/${encodeURIComponent(id)}`),
+  createItem: (item) => request('/api/items', { method: 'POST', body: JSON.stringify(item) }),
   updateItem: (id, patch) =>
     request(`/api/items/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -43,4 +44,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
+  setImportant: (id, important) =>
+    request(`/api/items/${encodeURIComponent(id)}/important`, {
+      method: 'PATCH',
+      body: JSON.stringify({ important }),
+    }),
+  requestReenrich: (id) =>
+    request(`/api/items/${encodeURIComponent(id)}/reenrich`, { method: 'POST' }),
 };

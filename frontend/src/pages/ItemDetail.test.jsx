@@ -6,7 +6,7 @@ import ItemDetail from './ItemDetail';
 import { api } from '../api';
 
 vi.mock('../api', () => ({
-  api: { getItem: vi.fn(), updateItem: vi.fn() },
+  api: { getItem: vi.fn(), updateItem: vi.fn(), setImportant: vi.fn(), requestReenrich: vi.fn() },
 }));
 
 function baseItem(overrides) {
@@ -20,6 +20,8 @@ function baseItem(overrides) {
     status: 'enriched',
     enrichment: null,
     chat: [],
+    important: false,
+    manual: false,
     ...overrides,
   };
 }
@@ -149,6 +151,23 @@ describe('ItemDetail', () => {
     const backLink = screen.getByText(/Archive/, { selector: 'a' });
     expect(backLink).toHaveAttribute('href', '/archive');
     expect(screen.queryByPlaceholderText('Ask a follow-up…')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-enrich' })).not.toBeInTheDocument();
+  });
+
+  it('shows the Re-enrich button for an enrichable category, not for a task category', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByRole('button', { name: 'Re-enrich' })).toBeInTheDocument();
+  });
+
+  it('hides Re-enrich for a task category (todo)', async () => {
+    api.getItem.mockResolvedValueOnce(baseItem({ category: 'todo', enrichment: null }));
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByRole('button', { name: 'Re-enrich' })).not.toBeInTheDocument();
   });
 
   it('shows the chat panel for an active (non-archived) item', async () => {
@@ -160,6 +179,92 @@ describe('ItemDetail', () => {
 
     await screen.findByText('Pier 66 laundry');
     expect(screen.getByPlaceholderText('Ask a follow-up…')).toBeInTheDocument();
+  });
+
+  const hoursAgo = (h) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+
+  it('flags an item as important and shows the filled star once it reloads', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    api.setImportant.mockResolvedValueOnce(
+      baseItem({ important: true, enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    const user = userEvent.setup();
+
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByLabelText('Important')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Flag as important' }));
+
+    expect(api.setImportant).toHaveBeenCalledWith('abc123', true);
+    await waitFor(() => expect(screen.getByLabelText('Important')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Unflag as important' })).toBeInTheDocument();
+  });
+
+  it('does not show the important toggle on an archived item, but still shows the star if flagged', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        status: 'filed',
+        important: true,
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByRole('button', { name: /flag as important/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Important')).toBeInTheDocument();
+  });
+
+  it('shows a "New" label for an item captured within 24 hours, and none once it ages past a week', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        captured: hoursAgo(6),
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByText('New')).toBeInTheDocument();
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+  });
+
+  it('shows a "Stale" label for an item captured more than 7 days ago', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        captured: hoursAgo(24 * 10),
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.getByText('Stale')).toBeInTheDocument();
+    expect(screen.queryByText('New')).not.toBeInTheDocument();
+  });
+
+  it('does not show a "Stale" label on an archived item, even if captured long ago', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        status: 'filed',
+        captured: hoursAgo(24 * 10),
+        enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] },
+      }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+  });
+
+  it('hides "View original capture" for a manually-added note', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({ manual: true, enrichment: { kind: 'answer', summary: 'x', detail: '', citations: [] } }),
+    );
+    renderDetail();
+    await screen.findByText('Pier 66 laundry');
+    expect(screen.queryByText('View original capture')).not.toBeInTheDocument();
   });
 
   it('links to the original capture using capture_id, not queue_id', async () => {

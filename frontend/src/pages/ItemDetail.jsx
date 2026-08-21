@@ -7,8 +7,12 @@ import Citations from '../components/Citations';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import ActionBar from '../components/ActionBar';
 import ChatPanel from '../components/ChatPanel';
+import ItemLabel from '../components/ItemLabel';
+import ReenrichButton from '../components/ReenrichButton';
+import StarIcon from '../components/StarIcon';
 import Prose from '../components/Prose';
-import { categoryColors, categoryLabel } from '../categories';
+import { categoryColors, categoryLabel, isEnrichableCategory } from '../categories';
+import { isNewItem, isStaleItem } from '../itemLabels';
 import { useDarkMode } from '../theme-hook';
 import Login from '../components/Login';
 
@@ -242,7 +246,20 @@ export default function ItemDetail() {
   const [item, setItem] = useState(null);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [togglingImportant, setTogglingImportant] = useState(false);
   const dark = useDarkMode();
+
+  async function toggleImportant() {
+    setTogglingImportant(true);
+    try {
+      setItem(await api.setImportant(item.queue_id, !item.important));
+    } catch {
+      // Not worth a dedicated error banner for a one-tap toggle - the star
+      // simply doesn't flip, and the user can just tap it again.
+    } finally {
+      setTogglingImportant(false);
+    }
+  }
 
   const load = () => {
     let cancelled = false;
@@ -308,43 +325,71 @@ export default function ItemDetail() {
           &larr; {isArchived ? 'Archive' : 'Inbox'}
         </Link>
         {!isArchived && (
-          <button
-            aria-label="Edit item"
-            onClick={() => setEditing(true)}
-            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
-          >
-            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
-              <line x1="12" y1="5" x2="15" y2="8" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              aria-label={item.important ? 'Unflag as important' : 'Flag as important'}
+              onClick={toggleImportant}
+              disabled={togglingImportant}
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50"
+              style={{
+                background: 'var(--color-card-bg)',
+                border: '1px solid var(--color-border)',
+                color: item.important ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+              }}
+            >
+              <StarIcon filled={item.important} size={15} />
+            </button>
+            <button
+              aria-label="Edit item"
+              onClick={() => setEditing(true)}
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+            >
+              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13.5 3.5 16.5 6.5 7 16H4v-3Z" />
+                <line x1="12" y1="5" x2="15" y2="8" />
+              </svg>
+            </button>
+          </div>
         )}
       </div>
       <div className="px-5 pb-4 flex items-start gap-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <CategoryBadge category={item.category} size={38} iconSize={18} radius={11} />
-        <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: colors.label }}>
-            {categoryLabel(item.category)}
+        <div className="min-w-0 grow">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: colors.label }}>
+              {categoryLabel(item.category)}
+            </div>
+            {!isArchived && (isNewItem(item) ? <ItemLabel kind="new" /> : isStaleItem(item) ? <ItemLabel kind="stale" /> : null)}
           </div>
-          <div className="font-serif font-semibold text-xl leading-tight mt-0.5" style={{ color: 'var(--color-text-primary)' }}>
-            {item.title || item.capture_id}
+          <div className="flex items-start gap-1.5 mt-0.5">
+            {item.important && (
+              <span className="shrink-0 mt-1.5" style={{ color: 'var(--color-accent)' }} aria-label="Important">
+                <StarIcon filled size={14} />
+              </span>
+            )}
+            <div className="font-serif font-semibold text-xl leading-tight" style={{ color: 'var(--color-text-primary)' }}>
+              {item.title || item.capture_id}
+            </div>
           </div>
           <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
             Captured {timeAgo(item.captured)}
           </div>
-          <Link
-            to={`/capture/${encodeURIComponent(item.capture_id)}`}
-            className="text-xs mt-1 inline-block hover:underline"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            View original capture
-          </Link>
+          {!item.manual && (
+            <Link
+              to={`/capture/${encodeURIComponent(item.capture_id)}`}
+              className="text-xs mt-1 inline-block hover:underline"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              View original capture
+            </Link>
+          )}
         </div>
       </div>
 
       <div className="grow overflow-y-auto p-5">
         <Body item={item} />
+        {!isArchived && isEnrichableCategory(item.category) && <ReenrichButton queueId={item.queue_id} />}
         {!isArchived && <ChatPanel item={item} onUpdate={setItem} />}
       </div>
 

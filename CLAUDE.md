@@ -47,7 +47,13 @@ These occurred in this project. Do not repeat them.
   `[AllowEmptyString()]` and `[AllowEmptyCollection()]`.
 - Read files with `Get-Content -Raw`, then split the text. The array form
   behaves differently on files with one line.
-- `Move-Item` fails when the target exists. Use a unique-path function.
+- `Move-Item` fails when the target exists. Use a unique-path function for a
+  new file. To deliberately overwrite an existing file (an atomic update),
+  use `Move-Item -Force` instead - it does overwrite. Don't use
+  `[IO.File]::Replace($tmp, $target, $null)` for this: on this project's
+  platform it throws "The value cannot be an empty string (Parameter
+  'path')" when the backup path is `$null`, even though `$null` is meant to
+  mean "no backup."
 - The script targets `pwsh.exe`, not `powershell.exe`.
 
 ## Testing

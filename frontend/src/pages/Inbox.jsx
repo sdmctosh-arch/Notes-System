@@ -82,6 +82,17 @@ export default function Inbox() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Link
+            to="/new"
+            aria-label="New note"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-accent)', color: 'var(--color-accent-text)' }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <line x1="10" y1="4" x2="10" y2="16" />
+              <line x1="4" y1="10" x2="16" y2="10" />
+            </svg>
+          </Link>
+          <Link
             to="/search"
             aria-label="Search"
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"

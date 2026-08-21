@@ -14,8 +14,10 @@ from app.models import (
     CaptureContent,
     ChatMessage,
     ChatRequest,
+    ImportantRequest,
     ItemUpdate,
     MoveRequest,
+    NewItemRequest,
     QueueItem,
     SearchResult,
     VaultNoteContent,
@@ -65,6 +67,14 @@ def logout(response: Response):
 @app.get("/api/items", response_model=list[QueueItem])
 def list_items(status: str | None = None, category: str | None = None, _=Depends(auth.require_auth)):
     return storage.list_pending_items(status=status, category=category)
+
+
+@app.post("/api/items", response_model=QueueItem, status_code=201)
+def create_item(payload: NewItemRequest, _=Depends(auth.require_auth)):
+    # Not from the phone - added directly in the interface (PROJECT.md
+    # 10.4/10.5). Writes straight into queue/pending, skipping
+    # classification entirely since the user already picked the category.
+    return storage.create_item(category=payload.category, title=payload.title, body=payload.body)
 
 
 @app.get("/api/archive", response_model=list[QueueItem])
@@ -151,6 +161,27 @@ def move_item(queue_id: str, move: MoveRequest, _=Depends(auth.require_auth)):
         raise HTTPException(status_code=404, detail=f"No item {queue_id}")
     except InvalidMoveError as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.patch("/api/items/{queue_id}/important", response_model=QueueItem)
+def set_item_important(queue_id: str, body: ImportantRequest, _=Depends(auth.require_auth)):
+    # Pending-only, the same as chat - an archived item is read-only.
+    try:
+        return storage.set_important(queue_id, body.important)
+    except ItemNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No item {queue_id}")
+
+
+@app.post("/api/items/{queue_id}/reenrich", status_code=202)
+def request_reenrich(queue_id: str, _=Depends(auth.require_auth)):
+    # 202, not 200 with the updated item: unlike chat/important, nothing
+    # about the item changes here - only the processor, on its next run,
+    # actually redoes the enrichment (PROJECT.md 10.5).
+    try:
+        storage.request_reenrich(queue_id)
+    except ItemNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No item {queue_id}")
+    return {"ok": True}
 
 
 @app.post("/api/items/{queue_id}/chat", response_model=QueueItem)

@@ -17,6 +17,7 @@ function item(overrides) {
     body: 'Lookup if Pier 66 has laundry.',
     captured: '2026-08-11T13:30:10-04:00',
     enrichment: null,
+    important: false,
     ...overrides,
   };
 }
@@ -71,6 +72,51 @@ describe('Inbox', () => {
     );
 
     expect(await screen.findByText("You're all caught up")).toBeInTheDocument();
+  });
+
+  it('labels a recently captured item "New" and a week-old one "Stale"', async () => {
+    const hoursAgo = (h) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+    api.listItems.mockResolvedValueOnce([
+      item({ queue_id: 'fresh', title: 'Fresh item', captured: hoursAgo(6) }),
+      item({ queue_id: 'old', title: 'Old item', captured: hoursAgo(24 * 10) }),
+    ]);
+
+    render(
+      <MemoryRouter>
+        <Inbox />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('Fresh item');
+    expect(screen.getByText('New')).toBeInTheDocument();
+    expect(screen.getByText('Stale')).toBeInTheDocument();
+  });
+
+  it('shows the important star next to a flagged item, not next to an unflagged one', async () => {
+    api.listItems.mockResolvedValueOnce([
+      item({ queue_id: 'flagged', title: 'Flagged item', important: true }),
+      item({ queue_id: 'plain', title: 'Plain item', important: false }),
+    ]);
+
+    render(
+      <MemoryRouter>
+        <Inbox />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('Flagged item');
+    expect(screen.getAllByLabelText('Important')).toHaveLength(1);
+  });
+
+  it('links the New note button to /new', async () => {
+    api.listItems.mockResolvedValueOnce([]);
+    render(
+      <MemoryRouter>
+        <Inbox />
+      </MemoryRouter>,
+    );
+    await screen.findByText("You're all caught up");
+    expect(screen.getByLabelText('New note')).toHaveAttribute('href', '/new');
   });
 
   it('shows the login form on a 401', async () => {
