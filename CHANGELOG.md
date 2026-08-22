@@ -4,6 +4,21 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix desktop Inbox: greeting header, independent pane scrolling (#20)
+
+### Summary
+- Desktop Inbox header now shows the time-of-day greeting ("Good morning" etc.), matching mobile, instead of a static "Inbox" label.
+- The desktop two-pane Inbox (list + detail) now scrolls each pane independently within a fixed-height layout, instead of the whole page scrolling as one unit. Previously, scrolling the list down to an older note and opening it would scroll the detail pane out of view too, requiring a scroll back up to see it.
+- The detail pane's body resets to the top whenever a different item is selected, so switching notes doesn't leave the new item scrolled to wherever the previous one was left.
+
+### Test plan
+- [x] `npm test` in `frontend/` - 99/99 passing
+- [x] Manually verified in Chrome against a throwaway mock backend at desktop width (1400x900): scrolled list to an older note, clicked it, confirmed the detail pane opened fully visible at the top with no page-level scroll (`window.scrollY` stayed 0); confirmed list and detail scroll independently.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix Seerr push: percent-encode the search query, not httpx's default + (#19)
 
 ### Summary
