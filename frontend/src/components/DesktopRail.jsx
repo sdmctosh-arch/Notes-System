@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { setTheme } from '../theme';
 import { useDarkMode } from '../theme-hook';
@@ -25,10 +25,16 @@ function RailButton({ to, onClick, label, active, children }) {
 }
 
 // The desktop counterpart to Drawer.jsx (mobile) - a persistent icon rail
-// alongside the Inbox two-pane layout, per design 1b. Only rendered at the
-// lg breakpoint (see useIsDesktop), so it never competes with the drawer.
+// shown on every top-level view at the lg breakpoint (see useIsDesktop), not
+// just the Inbox two-pane layout (design 1b), so it never competes with the
+// drawer.
 export default function DesktopRail({ onLoggedOut }) {
   const dark = useDarkMode();
+  const { pathname } = useLocation();
+  // Vault and Archive both have sub-routes (a note, an item) that should
+  // still highlight their section - Inbox and Search don't, so those two
+  // stay exact matches.
+  const isActive = (base, exact = false) => (exact ? pathname === base : pathname === base || pathname.startsWith(`${base}/`));
 
   return (
     <div
@@ -43,19 +49,19 @@ export default function DesktopRail({ onLoggedOut }) {
       >
         <PlusGlyph />
       </Link>
-      <RailButton to="/" label="Inbox" active>
+      <RailButton to="/" label="Inbox" active={isActive('/', true)}>
         <InboxGlyph />
       </RailButton>
-      <RailButton to="/search" label="Search">
+      <RailButton to="/search" label="Search" active={isActive('/search', true)}>
         <SearchGlyph />
       </RailButton>
-      <RailButton to="/lists" label="Lists">
+      <RailButton to="/lists" label="Lists" active={isActive('/lists', true)}>
         <ListsGlyph />
       </RailButton>
-      <RailButton to="/vault" label="Vault">
+      <RailButton to="/vault" label="Vault" active={isActive('/vault')}>
         <VaultGlyph />
       </RailButton>
-      <RailButton to="/archive" label="Archive">
+      <RailButton to="/archive" label="Archive" active={isActive('/archive')}>
         <ArchiveGlyph />
       </RailButton>
       <div className="grow" />

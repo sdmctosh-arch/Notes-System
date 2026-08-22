@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import CategoryPicker from '../components/CategoryPicker';
 import Login from '../components/Login';
+import DesktopPageShell from '../components/DesktopPageShell';
+import { useIsDesktop } from '../useIsDesktop';
 
 export default function NewItem() {
   const navigate = useNavigate();
@@ -11,6 +13,8 @@ export default function NewItem() {
   const [body, setBody] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [loggedOut, setLoggedOut] = useState(false);
+  const isDesktop = useIsDesktop();
 
   async function save() {
     setSaving(true);
@@ -24,8 +28,8 @@ export default function NewItem() {
     }
   }
 
-  if (error?.status === 401) {
-    return <Login onSuccess={() => setError(null)} />;
+  if (loggedOut || error?.status === 401) {
+    return <Login onSuccess={() => { setLoggedOut(false); setError(null); }} />;
   }
 
   const fieldStyle = {
@@ -34,15 +38,17 @@ export default function NewItem() {
     color: 'var(--color-text-primary)',
   };
 
-  return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+  const content = (
+    <>
       <div className="px-5 pt-7 pb-3.5 flex items-start justify-between gap-3">
         <h1 className="font-serif font-semibold text-[26px] tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
           New note
         </h1>
-        <Link to="/" className="text-[13px] shrink-0 mt-1.5" style={{ color: 'var(--color-text-muted)' }}>
-          &larr; Inbox
-        </Link>
+        {!isDesktop && (
+          <Link to="/" className="text-[13px] shrink-0 mt-1.5" style={{ color: 'var(--color-text-muted)' }}>
+            &larr; Inbox
+          </Link>
+        )}
       </div>
 
       <div className="px-5 pb-4 flex flex-col gap-3">
@@ -92,6 +98,16 @@ export default function NewItem() {
           </Link>
         </div>
       </div>
+    </>
+  );
+
+  if (isDesktop) {
+    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{content}</DesktopPageShell>;
+  }
+
+  return (
+    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+      {content}
     </div>
   );
 }

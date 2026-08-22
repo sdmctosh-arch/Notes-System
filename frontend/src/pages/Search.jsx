@@ -4,6 +4,8 @@ import { api } from '../api';
 import CategoryBadge from '../components/CategoryBadge';
 import { categoryLabel } from '../categories';
 import Login from '../components/Login';
+import DesktopPageShell from '../components/DesktopPageShell';
+import { useIsDesktop } from '../useIsDesktop';
 
 const LOCATION_LABEL = { inbox: 'Inbox', archive: 'Archive' };
 
@@ -11,6 +13,8 @@ export default function Search() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  const [loggedOut, setLoggedOut] = useState(false);
+  const isDesktop = useIsDesktop();
 
   useEffect(() => {
     const q = query.trim();
@@ -32,19 +36,21 @@ export default function Search() {
     };
   }, [query]);
 
-  if (error?.status === 401) {
-    return <Login onSuccess={() => setError(null)} />;
+  if (loggedOut || error?.status === 401) {
+    return <Login onSuccess={() => { setLoggedOut(false); setError(null); }} />;
   }
 
-  return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+  const content = (
+    <>
       <div className="px-5 pt-7 pb-3.5 flex items-start justify-between gap-3">
         <h1 className="font-serif font-semibold text-[26px] tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
           Search
         </h1>
-        <Link to="/" className="text-[13px] shrink-0" style={{ color: 'var(--color-text-muted)' }}>
-          &larr; Inbox
-        </Link>
+        {!isDesktop && (
+          <Link to="/" className="text-[13px] shrink-0" style={{ color: 'var(--color-text-muted)' }}>
+            &larr; Inbox
+          </Link>
+        )}
       </div>
 
       <div className="px-5 pb-2">
@@ -123,6 +129,16 @@ export default function Search() {
           );
         })}
       </div>
+    </>
+  );
+
+  if (isDesktop) {
+    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{content}</DesktopPageShell>;
+  }
+
+  return (
+    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+      {content}
     </div>
   );
 }
