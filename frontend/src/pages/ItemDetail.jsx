@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import CategoryBadge from '../components/CategoryBadge';
@@ -320,6 +320,7 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
   const [editing, setEditing] = useState(false);
   const [togglingPinned, setTogglingPinned] = useState(false);
   const dark = useDarkMode();
+  const bodyRef = useRef(null);
 
   async function togglePinned() {
     setTogglingPinned(true);
@@ -347,6 +348,14 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
   };
 
   useEffect(load, [id]);
+
+  // In the embedded (desktop two-pane) case the body pane's DOM node is
+  // reused across items, so scrollTop persists from whatever the previous
+  // item was scrolled to - reset it so a newly picked item always opens
+  // at the top instead of wherever the last one left off.
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [id]);
 
   if (error?.status === 401) {
     return <Login onSuccess={load} />;
@@ -477,7 +486,7 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
         </div>
       </div>
 
-      <div className="grow overflow-y-auto p-5">
+      <div ref={bodyRef} className="grow overflow-y-auto p-5">
         <Body item={item} />
         {!isArchived && isEnrichableCategory(item.category) && <ReenrichButton queueId={item.queue_id} />}
         {!isArchived && <ChatPanel item={item} onUpdate={setItem} />}
