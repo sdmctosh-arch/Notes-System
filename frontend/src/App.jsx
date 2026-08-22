@@ -8,6 +8,7 @@ import Search from './pages/Search';
 import Lists from './pages/Lists';
 import CaptureView from './pages/CaptureView';
 import NewItem from './pages/NewItem';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
       <Route path="/lists" element={<Lists />} />
       <Route path="/capture/:captureId" element={<CaptureView />} />
       <Route path="/new" element={<NewItem />} />
+      <Route path="/settings" element={<Settings />} />
     </Routes>
   );
 }

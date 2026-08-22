@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { setTheme } from '../theme';
-import { useDarkMode } from '../theme-hook';
-import { InboxGlyph, ListsGlyph, VaultGlyph, ArchiveGlyph, MoonGlyph, LogoutGlyph } from './navIcons';
+import { InboxGlyph, ListsGlyph, VaultGlyph, ArchiveGlyph, SettingsGlyph, LogoutGlyph } from './navIcons';
 
 function NavRow({ to, label, icon, active, count }) {
   return (
@@ -27,8 +25,6 @@ function NavRow({ to, label, icon, active, count }) {
 }
 
 export default function Drawer({ open, onClose, pendingCount, onLoggedOut }) {
-  const dark = useDarkMode();
-
   return (
     <>
       <div
@@ -81,20 +77,7 @@ export default function Drawer({ open, onClose, pendingCount, onLoggedOut }) {
 
         <div className="h-px my-4" style={{ background: 'var(--color-border)' }} />
 
-        <button
-          onClick={() => setTheme(dark ? 'light' : 'dark')}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left"
-          style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}
-        >
-          <MoonGlyph />
-          <span>Dark mode</span>
-          <span
-            className="ml-auto w-[38px] h-[22px] rounded-full flex items-center px-[3px]"
-            style={{ background: 'var(--color-sel)', border: '1px solid var(--color-border)', justifyContent: dark ? 'flex-end' : 'flex-start' }}
-          >
-            <span className="w-4 h-4 rounded-full" style={{ background: dark ? 'var(--color-accent)' : 'var(--color-text-muted)' }} />
-          </span>
-        </button>
+        <NavRow to="/settings" label="Settings" icon={<SettingsGlyph />} />
 
         <button
           onClick={() => api.logout().catch(() => {}).finally(onLoggedOut)}

@@ -720,10 +720,13 @@ Sort by capture time, newest first. Filter by category.
 Not in the original plan: a "New" or "Stale" label on the item card and item
 detail header, computed client-side from `captured` (not `created` - see
 5.3) so it agrees with the "time ago" text next to it. "New" for the first
-24 hours after capture, "Stale" once 7 days have passed with no decision -
-the label just stops rendering once the item is filed, archived, or
-dismissed, since it leaves the pending queue at that point anyway. No new
-backend field; see `frontend/src/itemLabels.js`.
+day after capture, "Stale" once 7 days have passed with no decision by
+default - both thresholds are adjustable from Settings (below), stored
+client-side (`notes-settings` in `localStorage`), so they apply per browser,
+not per account (10.3 has no accounts to attach them to). The label just
+stops rendering once the item is filed, archived, or dismissed, since it
+leaves the pending queue at that point anyway. No new backend field; see
+`frontend/src/itemLabels.js` and `frontend/src/settings.js`.
 
 Not in the original plan: a welcome header above the filter chips - "Good
 morning"/"Good afternoon"/"Good evening" (computed client-side from the
@@ -735,13 +738,14 @@ Inbox with nothing pinned looks exactly like it did before pinning existed.
 
 Not in the original plan: on a phone-width screen, the row of nav icons
 above the item list is gone - a single hamburger button opens a slide-in
-drawer instead (Inbox, Lists, Vault, Archive, a dark-mode switch, and log
-out), and a floating "+" button in the bottom corner replaces the old
-header "+" link for New note. See `frontend/src/components/Drawer.jsx`.
+drawer instead (Inbox, Lists, Vault, Archive, Settings, and log out), and a
+floating "+" button in the bottom corner replaces the old header "+" link
+for New note. See `frontend/src/components/Drawer.jsx`.
 
 Not in the original plan: on a desktop-width screen (1024px and up, see
 `frontend/src/useIsDesktop.js`) every top-level view (Inbox, Search, Lists,
-Vault, Archive, New note) shows a persistent icon rail on the far left
+Vault, Archive, Settings, New note) shows a persistent icon rail on the far
+left
 (`components/DesktopRail.jsx`, the desktop counterpart to the mobile
 drawer, with the icon for whichever section is current highlighted) instead
 of falling back to the narrow mobile column. Only the Inbox becomes a
@@ -752,8 +756,8 @@ not navigate or change the URL - it only changes which item the detail pane
 renders (`ItemDetail`'s `id`/`embedded` props, `pages/Inbox.jsx`) - so the
 list stays visible while browsing. Keep/Archive/Dismiss in the detail pane
 clear the selection and reload the list instead of navigating to `/`, since
-the Inbox is already the page being shown. Search, Lists, Vault, and Archive
-sit in a single wider pane next to the rail instead
+the Inbox is already the page being shown. Search, Lists, Vault, Archive, and
+Settings sit in a single wider pane next to the rail instead
 (`components/DesktopPageShell.jsx`) - same content as the mobile view, no
 list/detail split. An item opened from any of those (or from `/items/:id`
 directly) keeps the single always-full-page detail view unchanged, on
@@ -849,6 +853,18 @@ category the processor actually enriches (everything except `todo` and
 `grocery` - 9.2's `$TaskCategories`), creating the note also drops a
 `.reenrich` marker (10.5) so it gets enriched on the processor's next run,
 the same as if it had come in from the phone.
+
+**Settings.** Not in the original plan. Reached from the mobile drawer or the
+desktop rail (above Log out in both). No API calls - every field is a
+client-side preference, stored in one `notes-settings` JSON blob in
+`localStorage` (`frontend/src/settings.js`), per browser rather than per
+account (10.3 has no accounts). Dark mode moved here from the drawer/rail
+(still the same `notes-theme` `localStorage` key and `theme.js` module -
+only where the switch is rendered changed). Also here: a "Compact rows"
+toggle (smaller cards, no preview line, in `InboxRow` - used by Inbox,
+Lists, and Archive) and the New/Stale label day thresholds described above.
+Deliberately excludes anything account/profile-shaped (name, avatar,
+notifications) - see the no-accounts note in 10.3.
 
 ### 10.5 Actions
 

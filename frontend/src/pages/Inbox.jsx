@@ -10,6 +10,7 @@ import Login from '../components/Login';
 import ItemDetail from './ItemDetail';
 import { saveScrollPosition, getScrollPosition } from '../scrollMemory';
 import { isNewItem } from '../itemLabels';
+import { useSettings } from '../settings-hook';
 import { useIsDesktop } from '../useIsDesktop';
 
 function greeting() {
@@ -68,6 +69,7 @@ export default function Inbox() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const isDesktop = useIsDesktop();
+  const { newDays } = useSettings();
 
   const load = useCallback(() => {
     setError(null);
@@ -170,7 +172,7 @@ export default function Inbox() {
     );
   }
 
-  const newCount = items?.filter(isNewItem).length ?? 0;
+  const newCount = items?.filter((i) => isNewItem(i, newDays)).length ?? 0;
 
   return (
     <div className="max-w-md mx-auto min-h-dvh flex flex-col relative" style={{ background: 'var(--color-bg)' }}>
