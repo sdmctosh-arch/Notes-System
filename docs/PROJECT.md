@@ -91,7 +91,8 @@ Do not add a port forward for the web interface.
 |---|---|
 | Gemini API, `generateContent` | Classification |
 | Gemini API, Interactions endpoint | Enrichment with tools |
-| TMDB API, `/search/movie`, `/search/tv` | Poster/backdrop image lookup for a `media` item. Optional, best-effort like Tandoor/Seerr below - see 9.2 |
+| TMDB API, `/search/movie`, `/search/tv` | Poster/backdrop image lookup for a `movie`/`tv` `media` item. Optional, best-effort like Tandoor/Seerr below - see 9.2 |
+| SteamGridDB API | Cover/hero image lookup for a `game` `media` item - TMDB's counterpart for the one media type it doesn't cover. Optional, best-effort, same posture - see 9.2 |
 
 ---
 
@@ -567,14 +568,29 @@ leaving the model to guess at one. Matches the same way `push_media`
 (below) matches against Seerr's TMDB-backed search: by title, filtered to
 the result whose release/air year equals the year enrichment found. Uses
 the classifier's schema-enforced top-level `media_type` (not enrichment's
-free-text `structured.media_type`) to decide whether to call TMDB at all -
-`game` and `music` have no TMDB equivalent and are skipped without a call,
-same as `push_media`. Optional and best-effort like Tandoor/Seerr: with no
-`$env:TMDB_API_KEY` or `tmdb.key.xml` configured, or no year, or no matching
-result, `structured.image`/`structured.backdrop` are just left `null` and
-the item still queues normally - a missing poster is not a failure. Stored
-as plain URLs, hotlinked by the frontend (10.4) - nothing is downloaded or
-cached.
+free-text `structured.media_type`) to decide whether, and which service, to
+call: TMDB for `movie`/`tv`; `music` and `other` have no equivalent and are
+skipped without a call, same as `push_media`. Optional and best-effort like
+Tandoor/Seerr: with no `$env:TMDB_API_KEY` or `tmdb.key.xml` configured, or
+no year, or no matching result, `structured.image`/`structured.backdrop`
+are just left `null` and the item still queues normally - a missing poster
+is not a failure. Stored as plain URLs, hotlinked by the frontend (10.4) -
+nothing is downloaded or cached.
+
+Not in the original plan: a `game` item gets the same `structured.image`/
+`structured.backdrop` treatment, but from SteamGridDB (`Get-SteamGridDbArt`
+in `Invoke-NoteProcessor-v2.ps1`) instead of TMDB, which has no game
+catalog - `image` comes from SteamGridDB's "grids" endpoint (tall cover
+art), `backdrop` from its "heroes" endpoint (wide banner). Configured the
+same optional, best-effort way via `$env:STEAMGRIDDB_API_KEY` or
+`steamgriddb.key.xml`. Unlike the TMDB lookup, there is no year-match guard
+here: SteamGridDB's search endpoint doesn't return a release date (getting
+one would mean a further per-candidate API call), so this just trusts the
+top, most-relevant autocomplete result - the same "good enough, not exact"
+bar already accepted for a recipe's photo above. A URL SteamGridDB returns
+is still run through the same URL-validation rule as the guards in 9.4
+before being stored, since (unlike TMDB's, which this script builds itself
+from a path fragment) it comes directly from an external response.
 
 Not in the original plan: "Keep in vault" on a `media` item whose top-level
 `media_type` is `tv` or `movie` (the classifier's schema-enforced field,
@@ -637,6 +653,7 @@ These guards do not depend on model behavior. Do not remove them.
 | Automation allowlist | Remove `automation_candidate` unless the category is in `$AutomationAllowedCategories` **and** the value is in `$AllowedAutomations`. `$AllowedAutomations` is empty. Record the proposed value in `proposed_automation` |
 | URL validation | A URL is valid only if it is absolute, has scheme `http` or `https`, and contains no white space. Put an invalid value in `url_rejected` |
 | Recipe image validation | A recipe's `structured.image` (9.3) is checked with the same absolute-`http(s)`-no-whitespace rule as the URL guard above, but an invalid value is dropped to `null` - there is no `image_rejected` field, since this is a nicety, not user data worth keeping around to inspect |
+| Game art validation | A `game` item's `structured.image`/`structured.backdrop` (9.2), coming straight from SteamGridDB's response rather than built by this script, get the same check-and-drop-to-`null` treatment as the recipe image above |
 | Content hash | Compare the SHA-256 of the normalized body against the ledger. Do not process a repeat |
 | Truncation | If `truncated` is `true`, file the **original** body text. Do not file the model output |
 
@@ -723,7 +740,8 @@ two-pane mode.
 Not in the original plan: `media` and `recipe` items get an art slot instead
 of the usual category-color badge - a real image
 (`frontend/src/components/ArtImage.jsx`) when enrichment found one (a TMDB
-poster/backdrop for `media`, 9.2; a dish photo for `recipe`, 9.3), falling
+poster/backdrop for a `movie`/`tv` `media` item, a SteamGridDB cover/hero
+for a `game` one, 9.2; a dish photo for `recipe`, 9.3), falling
 back to the original labelled striped placeholder
 (`components/ArtPlaceholder.jsx`) when it didn't - no URL from enrichment,
 or a hotlinked one that failed to load (nothing is downloaded or cached;
@@ -827,10 +845,11 @@ marker harmlessly if one shows up anyway). The processor's
 `Invoke-ReenrichRequests` (in `Invoke-NoteProcessor-v2.ps1`) scans for these
 markers on every run, redoes pass 2 with the item's current category/title/
 body/url/media_type, and removes the marker either way. `media_type` is
-included alongside the rest so a re-enriched `media` item still gets a
-TMDB poster/backdrop lookup (9.2) - without it, `Get-TmdbArt` has nothing
-to tell it `movie` from `tv` from `game`/`music` and silently skips the
-image every time. On success it overwrites
+included alongside the rest so a re-enriched `media` item still gets its
+poster/backdrop or cover/hero lookup (9.2) - without it, neither
+`Get-TmdbArt` nor `Get-SteamGridDbArt` has anything to tell `movie`/`tv`
+from `game` from `music`/`other`, and both silently skip the image every
+time. On success it overwrites
 `enrichment` and sets `status` to `enriched`; on failure it leaves the item
 completely unchanged (never wipes a working enrichment because a retry
 failed) and just logs a warning. The interface never sees whether the retry
@@ -924,8 +943,9 @@ only `pinned` - and the Inbox itself picked up a welcome header/greeting,
 Pinned/To review grouping, a hamburger drawer nav on phone screens, a
 desktop two-pane split view, and art slots for `media`/`recipe` items (all
 10.4) - originally placeholder-only, now backed by a real TMDB poster/
-backdrop for `media` and a search-found dish photo for `recipe` (9.2, 9.3),
-falling back to the placeholder when no image is available.
+backdrop (`movie`/`tv`) or SteamGridDB cover/hero (`game`) for `media`, and
+a search-found dish photo for `recipe` (9.2, 9.3), falling back to the
+placeholder when no image is available.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates
 itself on every merge and was staying accurate long after this table
