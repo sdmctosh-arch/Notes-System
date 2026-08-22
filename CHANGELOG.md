@@ -4,6 +4,23 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Add desktop rail to Search, Vault, Archive, Lists, New note (#21)
+
+### Summary
+- Search, Vault, Archive, Lists, and New note previously fell back to the same narrow `max-w-md` mobile column on a desktop-width screen, with no navigation rail - the desktop DesktopRail only ever appeared on the Inbox.
+- These five views now render the persistent DesktopRail alongside a wider content pane (`DesktopPageShell.jsx`), matching the Inbox's desktop chrome. Only the Inbox keeps its two-pane list/detail split; the rest are single-pane, same content as mobile.
+- DesktopRail now highlights whichever section is current (via `useLocation`) instead of always showing Inbox as active.
+- Updated `docs/PROJECT.md` 10.x desktop section to describe the rail as shared chrome across top-level views, not Inbox-only.
+
+### Test plan
+- [x] `npm test` in `frontend/` - 99/99 passing
+- [x] `npm run lint` - only pre-existing warnings on `useEffect(load, ...)` patterns unrelated to this change
+- [x] Manually verified in Chrome against a throwaway mock backend at desktop width (1400x900): visited /search, /vault, /archive, /lists, /new and confirmed the rail renders with the correct icon highlighted and content displays correctly; confirmed Inbox's two-pane layout and rail highlighting still work unchanged.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix desktop Inbox: greeting header, independent pane scrolling (#20)
 
 ### Summary
