@@ -4,6 +4,20 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix backend: PATCH /api/items could edit archived/filed items (#22)
+
+### Summary
+- `storage.update_item` looked up the target file in both `queue/pending` and `queue/archived`, unlike every other mutation (pin, chat, reenrich), which are pending-only. That let `PATCH /api/items/{id}` silently edit an archived, dismissed, or even filed item's title/category/body, even though the frontend hides Edit for non-pending items and PROJECT.md 10.4 calls Archive read-only.
+- Restricted `update_item` to `queue/pending`, matching the pattern used everywhere else, and added a regression test.
+
+### Test plan
+- [x] `python -m pytest` - 104 passed
+- [x] New test `test_patch_404_for_archived_item` confirms a 404 and the on-disk file is untouched
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Add desktop rail to Search, Vault, Archive, Lists, New note (#21)
 
 ### Summary
