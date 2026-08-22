@@ -4,6 +4,21 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Add a read-only processor log viewer (#32)
+
+### Summary
+- New "Processor log" view (`/log`), linked from a Diagnostics section on the Settings page - lets the user see the PowerShell processor's classification/enrichment activity and errors without RDP-ing into the M720s.
+- New read-only bind mount, `/data/logs` -> `E:\notes-system\logs` (`LOG_DIR`), the first time that directory has been visible to the container.
+- `GET /api/logs` lists available dates (from `processor-<date>.log` filenames, newest first); `GET /api/logs/{date}` returns one day's content. `date` is validated against `^\d{4}-\d{2}-\d{2}$` before it ever touches the filesystem (stricter than the resolve()+containment check `capture.py`/`vault.py` use).
+- Frontend page has a date picker (newest selected by default) and a Refresh button; no polling.
+- PROJECT.md 10.2/10.4 updated to document the new bind mount and view.
+
+### Test plan
+- [x] `pytest` (backend) - 132/132 passing, including new `test_logs.py` and endpoint tests in `test_api.py` (auth-required, 404, path-traversal rejection)
+- [x] `npm test` (frontend) - 103/103 passing
+- [x] `npm run lint` / `npm run build` - clean
+- [ ] Manual check against the live container after merge (queued as a follow-up in this session)
+
 ## 2026-08-22 - Add a Settings page (#31)
 
 ### Summary
