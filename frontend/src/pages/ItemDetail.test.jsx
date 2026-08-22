@@ -510,4 +510,29 @@ describe('ItemDetail', () => {
     );
     expect(await screen.findByText('New title')).toBeInTheDocument();
   });
+
+  it('resets local UI state when the embedded desktop pane switches to a different item (no route change)', async () => {
+    api.getItem.mockResolvedValueOnce(baseItem({ queue_id: 'abc123', title: 'First note' }));
+    api.getItem.mockResolvedValueOnce(baseItem({ queue_id: 'def456', title: 'Second note' }));
+    const user = userEvent.setup();
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <ItemDetail id="abc123" embedded />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('First note');
+    await user.click(screen.getByRole('button', { name: /edit item/i }));
+    expect(screen.getByText('Editing')).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <ItemDetail id="def456" embedded />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Second note')).toBeInTheDocument();
+    expect(screen.queryByText('Editing')).not.toBeInTheDocument();
+  });
 });

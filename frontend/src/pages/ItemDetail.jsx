@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import CategoryBadge from '../components/CategoryBadge';
@@ -338,12 +338,24 @@ function EditForm({ item, onSaved, onCancel }) {
 export default function ItemDetail({ id: propId, embedded = false, onActioned }) {
   const { id: routeId } = useParams();
   const id = propId ?? routeId;
+  // key={id} forces React to unmount and remount the whole subtree when the
+  // selected item changes, instead of reusing the same instance. Without it,
+  // nothing here is actually keyed to `id` except the `item`/`error` state
+  // that `load` explicitly refetches - local UI state that isn't (editing,
+  // togglingPinned, plus child state like ArtImage/MediaHero's imgFailed and
+  // ChatPanel's draft) would otherwise bleed from the previous item into the
+  // new one. Matters most in the desktop two-pane Inbox, where clicking a
+  // different row swaps `id` without navigating (no route change, no natural
+  // remount) - but also covers the mobile route case for free.
+  return <ItemDetailInner key={id} id={id} embedded={embedded} onActioned={onActioned} />;
+}
+
+function ItemDetailInner({ id, embedded, onActioned }) {
   const [item, setItem] = useState(null);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
   const [togglingPinned, setTogglingPinned] = useState(false);
   const dark = useDarkMode();
-  const bodyRef = useRef(null);
 
   async function togglePinned() {
     setTogglingPinned(true);
@@ -371,14 +383,6 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
   };
 
   useEffect(load, [id]);
-
-  // In the embedded (desktop two-pane) case the body pane's DOM node is
-  // reused across items, so scrollTop persists from whatever the previous
-  // item was scrolled to - reset it so a newly picked item always opens
-  // at the top instead of wherever the last one left off.
-  useEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = 0;
-  }, [id]);
 
   if (error?.status === 401) {
     return <Login onSuccess={load} />;
@@ -509,7 +513,7 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
         </div>
       </div>
 
-      <div ref={bodyRef} className="grow overflow-y-auto p-5">
+      <div className="grow overflow-y-auto p-5">
         <AmbiguityNote item={item} />
         <Body item={item} />
         {!isArchived && isEnrichableCategory(item.category) && <ReenrichButton queueId={item.queue_id} />}
