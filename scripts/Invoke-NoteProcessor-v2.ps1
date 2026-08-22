@@ -697,10 +697,15 @@ function Invoke-ReenrichRequests {
             }
 
             $synthetic = [pscustomobject]@{
-                category = $item.category
-                title    = $item.title
-                body     = $item.body
-                url      = $item.url
+                category   = $item.category
+                title      = $item.title
+                body       = $item.body
+                url        = $item.url
+                # Needed for Get-TmdbArt's game/music skip and movie-vs-tv
+                # endpoint choice (9.2) - without it, a re-enriched media
+                # item would silently never get a poster/backdrop, since
+                # Get-ItemField would find nothing to read it from.
+                media_type = $item.media_type
             }
             try {
                 $enrichment = Invoke-Enrichment -Item $synthetic -NoteId $item.capture_id
