@@ -74,6 +74,21 @@ def test_patch_category_rejects_unknown_value(sandbox):
     assert on_disk["category"] == "lookup"
 
 
+def test_patch_404_for_archived_item(sandbox):
+    # Archive is read-only (PROJECT.md 10.4) - an item that has already
+    # been kept/archived/dismissed must not be editable via PATCH, the same
+    # way chat/pin/reenrich are already pending-only.
+    item = sandbox.seed(queue_id="a", category="lookup", title="Old title", status="archived")
+    (sandbox.queue_dir / "pending" / "a.json").unlink()
+    (sandbox.queue_dir / "archived" / "a.json").write_text(json.dumps(item), encoding="utf-8")
+
+    resp = sandbox.client.patch("/api/items/a", json={"title": "New title"})
+    assert resp.status_code == 404
+
+    on_disk = json.loads((sandbox.queue_dir / "archived" / "a.json").read_text())
+    assert on_disk["title"] == "Old title"
+
+
 def test_move_archive(sandbox):
     sandbox.seed(queue_id="a")
     resp = sandbox.client.post("/api/items/a/move", json={"action": "archive"})

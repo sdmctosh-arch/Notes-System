@@ -90,8 +90,13 @@ def update_item(
     title: str | None = None,
     body: str | None = None,
 ) -> QueueItem:
-    path = _find_item_path(queue_id)
-    if path is None:
+    # Pending-only, the same as chat/pin/reenrich - once an item is
+    # archived/filed/dismissed the interface treats it as read-only
+    # (PROJECT.md 10.4's Archive view). A filed item in particular may
+    # already have a real vault note (and a Tandoor/Seerr push) built from
+    # its current title/category, which an edit here can't retroactively fix.
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
         raise ItemNotFoundError(queue_id)
     item = _read_item(path)
     updated = item.model_copy(
