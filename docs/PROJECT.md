@@ -32,11 +32,12 @@ One user. No multi-user support. No user accounts.
 ### 1.4 Out of scope
 
 Do not add these components. The user rejected them or did not request them.
+The exception is Seerr, once removed but reintroduced for a narrower purpose
+- see the note below the table.
 
 | Component | Status |
 |---|---|
 | Tunarr | Rejected |
-| Seerr | Removed |
 | Actual Budget | Removed |
 | Cloudflare Tunnel | Not used |
 | Tailscale | Not used. Use NordVPN Meshnet |
@@ -45,6 +46,11 @@ Do not add these components. The user rejected them or did not request them.
 | Immich, Jellyfin, ErsatzTV | Not used |
 | A database server | Not used. See section 4.4 |
 | Direct execution of home automations | Not in this version. See section 9.4 |
+
+Seerr was originally removed from the homelab as a standalone service. It
+came back for one narrow purpose: "Keep in vault" on a `movie`/`tv` `media`
+item requests the title in a self-hosted Seerr instance, the same
+best-effort way "Keep in vault" on a recipe pushes to Tandoor. See 9.2, 10.5.
 
 ---
 
@@ -280,9 +286,18 @@ One JSON file for each item. The file name is the `queue_id`.
   "created": "2026-08-18T16:08:22-04:00",
   "status": "pending",
   "enrichment": null,
-  "processor_version": "0.2"
+  "processor_version": "0.2",
+  "chat": [],
+  "pinned": false,
+  "manual": false
 }
 ```
+
+`chat`, `pinned`, and `manual` are interface-only fields - the processor
+never writes them. `chat` and `pinned` default to `[]`/`false` so a queue
+file written before those features existed still loads. `manual` is `true`
+only for a New note (10.4) - a note added directly in the interface with no
+backing capture file.
 
 There is no `capture_path` field - the original capture always lives at
 `Archive\Captures\<capture_id>.md`, so `capture_id` plus that fixed naming
@@ -743,7 +758,12 @@ sit in a single wider pane next to the rail instead
 list/detail split. An item opened from any of those (or from `/items/:id`
 directly) keeps the single always-full-page detail view unchanged, on
 desktop and phone alike - it's only the Inbox's own rows that open in the
-two-pane detail pane instead of navigating.
+two-pane detail pane instead of navigating. The welcome header above shows
+on the desktop Inbox too, not just mobile. The list pane and the detail
+pane each scroll independently within a fixed-height layout, rather than
+the page scrolling as one unit - so scrolling the list to an older note and
+opening it doesn't also scroll the detail pane out of view. The detail
+pane's body resets to the top whenever a different item is selected.
 
 Not in the original plan: `media` and `recipe` items get an art slot instead
 of the usual category-color badge - a real image
