@@ -765,6 +765,13 @@ the page scrolling as one unit - so scrolling the list to an older note and
 opening it doesn't also scroll the detail pane out of view. The detail
 pane's body resets to the top whenever a different item is selected.
 
+The desktop rail extends to a vault note (`pages/VaultNote.jsx`, reached
+from Vault) and an original capture (`pages/CaptureView.jsx`, reached from
+"View original capture" on an item card) too, the same `DesktopPageShell`
+treatment as Search/Lists/Vault/Archive - these are content viewers reached
+from a rail-bearing list, not item drill-downs like `ItemDetail`, so they
+follow that pattern rather than the full-page exception above.
+
 Not in the original plan: `media` and `recipe` items get an art slot instead
 of the usual category-color badge - a real image
 (`frontend/src/components/ArtImage.jsx`) when enrichment found one (a TMDB
