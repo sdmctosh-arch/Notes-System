@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import secrets
 import tempfile
 from datetime import datetime
@@ -15,6 +16,23 @@ class ItemNotFoundError(Exception):
 
 class InvalidMoveError(Exception):
     pass
+
+
+# Every queue_id below comes straight from a URL path segment, then gets
+# dropped into f"{queue_id}.json" and joined onto QUEUE_PENDING_DIR/
+# QUEUE_ARCHIVED_DIR with no other check - a value containing "../" could
+# otherwise walk that join out of the queue directories entirely, to read,
+# overwrite, or delete a file nothing about this API should be able to touch.
+# A real queue_id is always one this system generated itself, either the
+# processor's <capture_id>-NN format (digits, hyphens) or create_item's
+# manual-<timestamp>-<hex> format (letters, digits, hyphens) - never a path
+# separator or "..". Reject anything else before it reaches a path join.
+_QUEUE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _validate_queue_id(queue_id: str) -> None:
+    if not _QUEUE_ID_RE.fullmatch(queue_id) or queue_id in (".", ".."):
+        raise ItemNotFoundError(queue_id)
 
 
 def _read_item(path: Path) -> QueueItem:
@@ -69,6 +87,7 @@ def list_archived_items(
 
 
 def _find_item_path(queue_id: str) -> Path | None:
+    _validate_queue_id(queue_id)
     for directory in (QUEUE_PENDING_DIR, QUEUE_ARCHIVED_DIR):
         candidate = directory / f"{queue_id}.json"
         if candidate.is_file():
@@ -95,6 +114,7 @@ def update_item(
     # (PROJECT.md 10.4's Archive view). A filed item in particular may
     # already have a real vault note (and a Tandoor/Seerr push) built from
     # its current title/category, which an edit here can't retroactively fix.
+    _validate_queue_id(queue_id)
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         raise ItemNotFoundError(queue_id)
@@ -115,6 +135,7 @@ def get_pending_item(queue_id: str) -> QueueItem:
     # source side is - once an item is archived/filed/dismissed the
     # interface treats it as read-only (PROJECT.md 10.4's Archive view),
     # and chat is a mutation like any other.
+    _validate_queue_id(queue_id)
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         raise ItemNotFoundError(queue_id)
@@ -122,6 +143,7 @@ def get_pending_item(queue_id: str) -> QueueItem:
 
 
 def add_chat_messages(queue_id: str, messages: list[ChatMessage]) -> QueueItem:
+    _validate_queue_id(queue_id)
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         raise ItemNotFoundError(queue_id)
@@ -134,6 +156,7 @@ def add_chat_messages(queue_id: str, messages: list[ChatMessage]) -> QueueItem:
 def set_pinned(queue_id: str, pinned: bool) -> QueueItem:
     # Pending-only, the same as chat - once an item is archived/filed/
     # dismissed the interface treats it as read-only.
+    _validate_queue_id(queue_id)
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         raise ItemNotFoundError(queue_id)
@@ -181,6 +204,7 @@ def request_reenrich(queue_id: str) -> None:
     # run, redoes pass 2, and removes the marker either way (see
     # Invoke-ReenrichRequests in Invoke-NoteProcessor-v2.ps1). Pending-only,
     # the same as chat and set_pinned - an archived item is read-only.
+    _validate_queue_id(queue_id)
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         raise ItemNotFoundError(queue_id)
@@ -195,6 +219,7 @@ def unarchive_item(queue_id: str) -> QueueItem:
     # safely undo, so Unarchive leaves it alone rather than pretending to.
     # `captured` is left untouched - it goes back to the Inbox at its real
     # age, not disguised as a fresh capture.
+    _validate_queue_id(queue_id)
     path = QUEUE_ARCHIVED_DIR / f"{queue_id}.json"
     if not path.is_file():
         if (QUEUE_PENDING_DIR / f"{queue_id}.json").is_file():
@@ -216,6 +241,7 @@ def unarchive_item(queue_id: str) -> QueueItem:
 def move_to_archived(queue_id: str, new_status: str) -> QueueItem:
     # 10.6: the interface moves files from queue\pending\ to
     # queue\archived\ only - so a move is only valid starting from pending.
+    _validate_queue_id(queue_id)
     path = QUEUE_PENDING_DIR / f"{queue_id}.json"
     if not path.is_file():
         if (QUEUE_ARCHIVED_DIR / f"{queue_id}.json").is_file():
