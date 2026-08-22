@@ -4,6 +4,22 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix TMDB query encoding and move sandbox path fully outside E:\notes-system (#28)
+
+### Summary
+- `Get-TmdbArt` built its search query via `Invoke-RestMethod -Body`, which serializes as a form-encoded query string (`+` for spaces) instead of the `%20` encoding `Get-SteamGridDbArt` right next to it already uses via `[uri]::EscapeDataString`. Same bug class as the Seerr query-encoding fix (#19) - TMDB tolerates `+` in practice so this wasn't confirmed broken, but there's no reason to rely on that leniency when the sibling function already does it the explicit way.
+- `Test-Sandbox.ps1`'s default `-SandboxRoot` was a subfolder of the real `E:\notes-system`. Safe in practice (wiped every run, never read), but in tension with CLAUDE.md rule 1's literal wording ("never write to `E:\notes-system` during development," no subfolder exception stated). Moved the default to `$env:TEMP`, fully outside it. `-SystemRoot` still points at the real `E:\notes-system` to read the existing `gemini.key.xml` - reading a secret is harmless, only writes needed to move.
+
+### Test plan
+- [x] Both scripts parse cleanly (`[System.Management.Automation.Language.Parser]::ParseFile`)
+- [x] Extracted `Get-TmdbArt` from the real script and called it with `Invoke-RestMethod` shadowed to capture the built URI (no live TMDB call) - confirmed `%20`, not `+`, matching `Get-SteamGridDbArt`'s pattern
+- [x] `Test-Sandbox.ps1 -SampleCount 1` run live against the real API: sandbox created under `%TEMP%\notes-system-sandbox-test`, completed a real classify pass, no writes under `E:\notes-system`, `-SampleCount 1` still doesn't crash (no regression on the #25 fix for that)
+
+Found during a full-project review, left open pending your decision, now applied.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Add desktop rail to VaultNote and CaptureView (#27)
 
 ### Summary
