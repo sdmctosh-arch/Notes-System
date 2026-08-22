@@ -4,6 +4,22 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Add desktop rail to VaultNote and CaptureView (#27)
+
+### Summary
+- PR #21 added the desktop icon rail (`DesktopPageShell`) to Search, Vault, Archive, Lists, and New note, but missed the two pages those views open into: a vault note's content (`VaultNote.jsx`) and an item's original capture (`CaptureView.jsx`). On a desktop-width screen both rendered in the narrow mobile column with no rail - losing one-click navigation to any other section.
+- Applied the same `isDesktop` + `DesktopPageShell` pattern already used by `Vault.jsx`/`Archive.jsx`. Kept each page's specific back link/button visible on desktop too (unlike Vault's generic "back to Inbox" link, which the rail already makes redundant) since these return to a specific place the rail can't.
+- Updated PROJECT.md 10.4 to document the extension and why these two follow the rail pattern rather than `ItemDetail`'s documented full-page exception.
+
+### Test plan
+- [x] `npm test -- --run` - 103/103 pass (no test changes needed; `useIsDesktop` defaults to `false` in the jsdom test env, same as `Vault.test.jsx`/`Archive.test.jsx`, so existing mobile-path tests are unaffected)
+- [x] `npx oxlint` on changed files - no new warnings
+
+Found during a full-project review as an open question, resolved by extending the already-established pattern rather than declaring it an intentional gap.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix ItemDetail reusing state across items in the desktop two-pane Inbox (#26)
 
 ### Summary
