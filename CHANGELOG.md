@@ -4,6 +4,24 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix ItemDetail reusing state across items in the desktop two-pane Inbox (#26)
+
+### Summary
+- The desktop two-pane Inbox (`Inbox.jsx`) renders `<ItemDetail id={selectedId} embedded />` without a `key`, so React reuses the same instance when a different row is clicked instead of remounting. `useEffect(load, [id])` refetches `item`/`error`, but nothing else is keyed to `id`: `editing`, `togglingPinned`, `ArtImage`/`MediaHero`'s `imgFailed`, and `ChatPanel`'s draft all carried over from the previous item.
+- Split `ItemDetail` into an outer wrapper (resolves `id` from props or the route param) and an inner component keyed by it, so both the desktop embedded case and the mobile route case get a full remount on item switch.
+- Removed the `bodyRef` scroll-reset effect and its comment - a remounted pane already opens at `scrollTop 0`, so it was dead weight once the real fix was in place.
+- Added a regression test in `ItemDetail.test.jsx` that opens the edit form on one item, switches `id` (as the desktop pane does), and asserts the edit form is gone. Verified it fails without the fix (stuck showing the old item's edit form) and passes with it.
+
+### Test plan
+- [x] `npm test -- --run` - 103/103 pass (102 existing + 1 new)
+- [x] `npx oxlint` on changed files - no new warnings
+- [x] Manually reverted the `key` prop and re-ran the new test to confirm it catches the regression, then restored the fix
+
+Found during a full-project review (background finding, not yet applied by that review's own PRs #22-25).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix processor: non-atomic queue write, dead code, retry classification (#25)
 
 ### Summary
