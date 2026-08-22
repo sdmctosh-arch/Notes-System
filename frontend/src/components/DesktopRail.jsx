@@ -1,8 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '../api';
-import { setTheme } from '../theme';
-import { useDarkMode } from '../theme-hook';
-import { PlusGlyph, InboxGlyph, SearchGlyph, ListsGlyph, VaultGlyph, ArchiveGlyph, MoonGlyph, LogoutGlyph } from './navIcons';
+import { PlusGlyph, InboxGlyph, SearchGlyph, ListsGlyph, VaultGlyph, ArchiveGlyph, SettingsGlyph, LogoutGlyph } from './navIcons';
 
 function RailButton({ to, onClick, label, active, children }) {
   const style = {
@@ -29,7 +27,6 @@ function RailButton({ to, onClick, label, active, children }) {
 // just the Inbox two-pane layout (design 1b), so it never competes with the
 // drawer.
 export default function DesktopRail({ onLoggedOut }) {
-  const dark = useDarkMode();
   const { pathname } = useLocation();
   // Vault and Archive both have sub-routes (a note, an item) that should
   // still highlight their section - Inbox and Search don't, so those two
@@ -65,8 +62,8 @@ export default function DesktopRail({ onLoggedOut }) {
         <ArchiveGlyph />
       </RailButton>
       <div className="grow" />
-      <RailButton label="Toggle dark mode" onClick={() => setTheme(dark ? 'light' : 'dark')}>
-        <MoonGlyph />
+      <RailButton to="/settings" label="Settings" active={isActive('/settings', true)}>
+        <SettingsGlyph />
       </RailButton>
       <RailButton label="Log out" onClick={() => api.logout().catch(() => {}).finally(onLoggedOut)}>
         <LogoutGlyph />

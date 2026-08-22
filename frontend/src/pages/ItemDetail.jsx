@@ -18,6 +18,7 @@ import Prose from '../components/Prose';
 import { categoryColors, categoryLabel, isEnrichableCategory } from '../categories';
 import { isArchivedStatus, isNewItem, isStaleItem } from '../itemLabels';
 import { useDarkMode } from '../theme-hook';
+import { useSettings } from '../settings-hook';
 import Login from '../components/Login';
 
 function timeAgo(iso) {
@@ -356,6 +357,7 @@ function ItemDetailInner({ id, embedded, onActioned }) {
   const [editing, setEditing] = useState(false);
   const [togglingPinned, setTogglingPinned] = useState(false);
   const dark = useDarkMode();
+  const { newDays, staleDays } = useSettings();
 
   async function togglePinned() {
     setTogglingPinned(true);
@@ -486,7 +488,8 @@ function ItemDetailInner({ id, embedded, onActioned }) {
             <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: colors.label }}>
               {categoryLabel(item.category)}
             </div>
-            {!isArchived && (isNewItem(item) ? <ItemLabel kind="new" /> : isStaleItem(item) ? <ItemLabel kind="stale" /> : null)}
+            {!isArchived &&
+              (isNewItem(item, newDays) ? <ItemLabel kind="new" /> : isStaleItem(item, staleDays) ? <ItemLabel kind="stale" /> : null)}
           </div>
           <div className="flex items-start gap-1.5 mt-0.5">
             {item.pinned && (

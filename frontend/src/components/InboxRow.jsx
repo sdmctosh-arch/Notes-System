@@ -5,6 +5,7 @@ import PinIcon from './PinIcon';
 import ArtImage from './ArtImage';
 import { categoryLabel } from '../categories';
 import { isArchivedStatus, isNewItem, isStaleItem } from '../itemLabels';
+import { useSettings } from '../settings-hook';
 
 // Categories with their own art get a placeholder image slot instead of
 // the plain icon badge, sized to match their detail-page treatment: media
@@ -29,8 +30,15 @@ function timeAgo(iso) {
 // scroll) except the desktop two-pane list, which passes onSelect to pick
 // the item into the right-hand pane instead of navigating away from it.
 export default function InboxRow({ item, onSelect, selected }) {
+  const { dense, newDays, staleDays } = useSettings();
   const preview = item.enrichment?.summary || item.body || '';
-  const label = isArchivedStatus(item) ? null : isNewItem(item) ? 'new' : isStaleItem(item) ? 'stale' : null;
+  const label = isArchivedStatus(item)
+    ? null
+    : isNewItem(item, newDays)
+      ? 'new'
+      : isStaleItem(item, staleDays)
+        ? 'stale'
+        : null;
   const art = ROW_ART[item.category];
   const artUrl = item.enrichment?.structured?.image || null;
   const Tag = onSelect ? 'button' : Link;
@@ -41,7 +49,7 @@ export default function InboxRow({ item, onSelect, selected }) {
   return (
     <Tag
       {...tagProps}
-      className="flex items-start gap-3 rounded-2xl border p-3.5 hover:opacity-90 transition-opacity w-full text-left"
+      className={`flex items-start gap-3 rounded-2xl border hover:opacity-90 transition-opacity w-full text-left ${dense ? 'p-2.5' : 'p-3.5'}`}
       style={{
         background: selected ? 'var(--color-sel)' : 'var(--color-card-bg)',
         borderColor: 'var(--color-border)',
@@ -49,9 +57,16 @@ export default function InboxRow({ item, onSelect, selected }) {
       }}
     >
       {art ? (
-        <ArtImage src={artUrl} alt={item.title || ''} width={art.width} height={art.height} radius={art.radius} label={art.label} />
+        <ArtImage
+          src={artUrl}
+          alt={item.title || ''}
+          width={dense ? Math.round(art.width * 0.6) : art.width}
+          height={dense ? Math.round(art.height * 0.6) : art.height}
+          radius={art.radius}
+          label={art.label}
+        />
       ) : (
-        <CategoryBadge category={item.category} />
+        <CategoryBadge category={item.category} {...(dense ? { size: 26, iconSize: 13, radius: 8 } : {})} />
       )}
       <div className="min-w-0 grow">
         <div className="flex items-start justify-between gap-2">
@@ -67,12 +82,14 @@ export default function InboxRow({ item, onSelect, selected }) {
           </div>
           {label && <ItemLabel kind={label} />}
         </div>
-        <div
-          className="text-[13px] mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          {preview}
-        </div>
+        {!dense && (
+          <div
+            className="text-[13px] mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            {preview}
+          </div>
+        )}
         <div className="text-[11px] mt-1.5 uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
           {categoryLabel(item.category)} &middot; {timeAgo(item.captured)}
         </div>
