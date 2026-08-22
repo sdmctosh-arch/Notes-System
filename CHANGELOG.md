@@ -4,6 +4,26 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Add PWA support (installable, offline app shell) (#33)
+
+### Summary
+- Add PWA support via `vite-plugin-pwa` (`generateSW` strategy): a Workbox service worker precaches the built app shell only - never `/api/*`, so items, chat, and auth always hit the backend live even when the shell loads from cache.
+- Add a web app manifest (name, icons, `display: standalone`, theme/background colors matching the existing brand purple/lavender) plus `apple-touch-icon`/`theme-color` meta tags, so "Add to Home Screen" on the phone installs a real app icon with no browser chrome.
+- Generate `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` (with proper safe-zone padding, checked against a circular mask), and `apple-touch-icon.png` from the existing `favicon.svg` logo.
+- Fix a pre-existing bug this surfaced: the backend's SPA catch-all (`main.py`'s `spa_fallback`) served `index.html` for *every* unmatched path, including root-level build output like `favicon.svg` - harmless for a favicon (browsers just silently fail to render it), fatal for a service worker or manifest, which the browser refuses to register/parse when it gets HTML back instead of JS/JSON. Fixed with `app/static_files.py`'s `resolve_static_file`, the same resolve()+containment guard `capture.py`/`vault.py`/`logs.py` already use.
+- Update `docs/PROJECT.md` (new section 10.8) per CLAUDE.md rule 8.
+
+### Test plan
+- [x] `npm test` (frontend) - 103/103 passing
+- [x] `npm run lint` - no new warnings (pre-existing `set-state-in-effect` warnings only, unrelated to this change)
+- [x] `npm run build` - succeeds; `dist/manifest.webmanifest`, `dist/sw.js`, `dist/workbox-*.js`, `dist/icons/*.png` all generated
+- [x] `python -m pytest -q` (backend) - 137/137 passing, including 5 new tests for `resolve_static_file` (existing file, nested file, missing file, directory, path traversal)
+- [x] Manually verified end-to-end against a real `uvicorn` instance (not just `TestClient`) serving the built `dist/`: `/favicon.svg` → `image/svg+xml`, `/manifest.webmanifest` → `application/manifest+json`, `/sw.js` → `text/javascript`, `/icons/icon-192.png` → `image/png`, a path-traversal attempt still falls back safely to `index.html`, and a genuine SPA route (`/items/some-id`) still falls back to `index.html` too
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Add a read-only processor log viewer (#32)
 
 ### Summary
