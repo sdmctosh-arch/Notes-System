@@ -4,6 +4,19 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix stale/incomplete PROJECT.md (#23)
+
+### Summary
+- Section 1.4 listed Seerr as "Removed" while 9.2/10.5/14 describe it as a live, verified integration - fixed the contradiction.
+- Added the missing `chat`/`pinned`/`manual` fields to the 5.3 queue-item example.
+- Documented CHANGELOG #20's desktop greeting header + independent pane scrolling in 10.4, which was missed at merge time.
+
+Docs-only change, no code touched.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix backend: PATCH /api/items could edit archived/filed items (#22)
 
 ### Summary
