@@ -4,6 +4,26 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix processor: non-atomic queue write, dead code, retry classification (#25)
+
+### Summary
+- `Write-QueueRow` now writes via `Set-QueueItemAtomic` (temp+rename) instead of writing the queue JSON in place - PROJECT.md 10.6.
+- Removed dead `$QueueDone` (`queue\done`) - never read anywhere, not part of the documented layout.
+- An empty classifier result is now treated as transient (retried) instead of an immediate permanent failure.
+- YouTube embed extraction now uses the same cleaned URL as `url`/`url_rejected`, not the raw one.
+- Fixed an unrelated pre-existing bug found while verifying this: `Test-Sandbox.ps1 -SampleCount 1` crashed (`Select-Object -First 1` collapsing to a scalar, and even `@()` not surviving as an if/else branch's implicit output - needed the leading-comma pattern).
+
+### Test plan
+- [x] Parse-checked with `[System.Management.Automation.Language.Parser]::ParseFile`
+- [x] `scripts\Test-Sandbox.ps1 -SampleCount 1 -Live` against a live sandbox - ran end to end, queue file written cleanly with no leftover `.tmp` file, correct system directories created (no `queue\done`)
+
+### Deploy note
+This only updates the repo checkout - `E:\notes-system\scripts\` is a separate copy the Task Scheduler job actually runs and needs a manual copy after merge.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix frontend: missing ambiguity_note, New/Stale label leaking into Archive (#24)
 
 ### Summary
