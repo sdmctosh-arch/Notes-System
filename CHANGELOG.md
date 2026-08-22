@@ -4,6 +4,19 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix re-enrich dropping media_type, silently skipping TMDB image lookup (#16)
+
+### Summary
+- `Invoke-ReenrichRequests` builds a synthetic item with only `category`/`title`/`body`/`url` before redoing pass 2. `Get-TmdbArt` (added in #15) needs `media_type` to decide `movie` vs `tv` vs skip (`game`/`music`) - without it, re-enriching an old `media` item silently never got a poster/backdrop.
+- Recipe images were unaffected - the model finds those itself using fields already present in the synthetic item.
+- Carries `media_type` through; `docs/PROJECT.md` 10.5 updated to match.
+
+### Test plan
+- [x] `pwsh` parse check - no syntax errors
+- [ ] Not exercised against a live re-enrich of a real media item yet - verify after this merges
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-22 - Wire real images into recipe and media items (#15)
 
 ### Summary
