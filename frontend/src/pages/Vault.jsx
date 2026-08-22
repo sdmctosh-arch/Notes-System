@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import Login from '../components/Login';
+import DesktopPageShell from '../components/DesktopPageShell';
+import { useIsDesktop } from '../useIsDesktop';
 
 function timeAgo(iso) {
   if (!iso) return null;
@@ -16,6 +18,8 @@ function timeAgo(iso) {
 export default function Vault() {
   const [folders, setFolders] = useState(null);
   const [error, setError] = useState(null);
+  const [loggedOut, setLoggedOut] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const load = () => {
     setError(null);
@@ -24,8 +28,8 @@ export default function Vault() {
 
   useEffect(load, []);
 
-  if (error?.status === 401) {
-    return <Login onSuccess={load} />;
+  if (loggedOut || error?.status === 401) {
+    return <Login onSuccess={() => { setLoggedOut(false); load(); }} />;
   }
   if (error) {
     return (
@@ -37,15 +41,17 @@ export default function Vault() {
 
   const folderNames = folders ? Object.keys(folders).sort() : [];
 
-  return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+  const content = (
+    <>
       <div className="px-5 pt-7 pb-3.5 flex items-start justify-between gap-3">
         <h1 className="font-serif font-semibold text-[26px] tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
           Vault
         </h1>
-        <Link to="/" className="text-[13px] shrink-0" style={{ color: 'var(--color-text-muted)' }}>
-          &larr; Inbox
-        </Link>
+        {!isDesktop && (
+          <Link to="/" className="text-[13px] shrink-0" style={{ color: 'var(--color-text-muted)' }}>
+            &larr; Inbox
+          </Link>
+        )}
       </div>
 
       {folders && folderNames.length === 0 && (
@@ -86,6 +92,16 @@ export default function Vault() {
           </div>
         ))}
       </div>
+    </>
+  );
+
+  if (isDesktop) {
+    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{content}</DesktopPageShell>;
+  }
+
+  return (
+    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+      {content}
     </div>
   );
 }

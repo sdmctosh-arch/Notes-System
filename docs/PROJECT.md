@@ -725,20 +725,25 @@ out), and a floating "+" button in the bottom corner replaces the old
 header "+" link for New note. See `frontend/src/components/Drawer.jsx`.
 
 Not in the original plan: on a desktop-width screen (1024px and up, see
-`frontend/src/useIsDesktop.js`) the Inbox becomes a two-pane layout instead
-of a single column - a persistent icon rail on the far left
+`frontend/src/useIsDesktop.js`) every top-level view (Inbox, Search, Lists,
+Vault, Archive, New note) shows a persistent icon rail on the far left
 (`components/DesktopRail.jsx`, the desktop counterpart to the mobile
-drawer), a list pane in the middle (the same items, grouping, and filter
-chips as the mobile view), and a detail pane on the right that shows
-whichever row was last clicked. Clicking a row does not navigate or change
-the URL - it only changes which item the detail pane renders
-(`ItemDetail`'s `id`/`embedded` props, `pages/Inbox.jsx`) - so the list
-stays visible while browsing. Keep/Archive/Dismiss in the detail pane clear
-the selection and reload the list instead of navigating to `/`, since the
-Inbox is already the page being shown. Every other view (Archive, Vault,
-Search, an item opened from one of those) keeps the single always-full-page
-detail view unchanged, on desktop and phone alike - only the Inbox has a
-two-pane mode.
+drawer, with the icon for whichever section is current highlighted) instead
+of falling back to the narrow mobile column. Only the Inbox becomes a
+two-pane layout behind that rail - a list pane in the middle (the same
+items, grouping, and filter chips as the mobile view) and a detail pane on
+the right that shows whichever row was last clicked. Clicking a row does
+not navigate or change the URL - it only changes which item the detail pane
+renders (`ItemDetail`'s `id`/`embedded` props, `pages/Inbox.jsx`) - so the
+list stays visible while browsing. Keep/Archive/Dismiss in the detail pane
+clear the selection and reload the list instead of navigating to `/`, since
+the Inbox is already the page being shown. Search, Lists, Vault, and Archive
+sit in a single wider pane next to the rail instead
+(`components/DesktopPageShell.jsx`) - same content as the mobile view, no
+list/detail split. An item opened from any of those (or from `/items/:id`
+directly) keeps the single always-full-page detail view unchanged, on
+desktop and phone alike - it's only the Inbox's own rows that open in the
+two-pane detail pane instead of navigating.
 
 Not in the original plan: `media` and `recipe` items get an art slot instead
 of the usual category-color badge - a real image

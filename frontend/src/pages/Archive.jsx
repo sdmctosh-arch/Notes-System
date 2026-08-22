@@ -4,6 +4,8 @@ import { api } from '../api';
 import FilterChips from '../components/FilterChips';
 import InboxRow from '../components/InboxRow';
 import Login from '../components/Login';
+import DesktopPageShell from '../components/DesktopPageShell';
+import { useIsDesktop } from '../useIsDesktop';
 import { saveScrollPosition, getScrollPosition } from '../scrollMemory';
 
 const STATUS_LABEL = { archived: 'Archived', filed: 'Kept', dismissed: 'Dismissed' };
@@ -13,6 +15,8 @@ export default function Archive() {
   const [error, setError] = useState(null);
   const [category, setCategory] = useState('all');
   const [query, setQuery] = useState('');
+  const [loggedOut, setLoggedOut] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const load = useCallback(() => {
     setError(null);
@@ -41,8 +45,8 @@ export default function Archive() {
     }
   }, [items]);
 
-  if (error?.status === 401) {
-    return <Login onSuccess={load} />;
+  if (loggedOut || error?.status === 401) {
+    return <Login onSuccess={() => { setLoggedOut(false); load(); }} />;
   }
   if (error) {
     return (
@@ -63,8 +67,8 @@ export default function Archive() {
         return haystack.includes(q);
       });
 
-  return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+  const content = (
+    <>
       <div className="px-5 pt-7 pb-3.5 flex items-start justify-between gap-3">
         <div>
           <h1 className="font-serif font-semibold text-[26px] tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
@@ -74,13 +78,15 @@ export default function Archive() {
             {items ? `${visible.length} item${visible.length === 1 ? '' : 's'}` : 'Loading…'}
           </div>
         </div>
-        <Link
-          to="/"
-          className="text-[13px] shrink-0"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          &larr; Inbox
-        </Link>
+        {!isDesktop && (
+          <Link
+            to="/"
+            className="text-[13px] shrink-0"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            &larr; Inbox
+          </Link>
+        )}
       </div>
 
       <div className="px-5 pb-2">
@@ -114,6 +120,16 @@ export default function Archive() {
           </div>
         ))}
       </div>
+    </>
+  );
+
+  if (isDesktop) {
+    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{content}</DesktopPageShell>;
+  }
+
+  return (
+    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+      {content}
     </div>
   );
 }
