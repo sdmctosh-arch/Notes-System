@@ -27,6 +27,7 @@ from app.models import (
 )
 from app.search import search_items, search_vault
 from app.seerr import push_media
+from app.static_files import resolve_static_file
 from app.storage import InvalidMoveError, ItemNotFoundError
 from app.tandoor import push_recipe
 from app.vault import list_vault_notes, read_vault_note, write_vault_note
@@ -254,6 +255,12 @@ if _STATIC_DIR.is_dir():
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str):
         # Anything not already matched above (an /api/* route or /assets/*)
-        # is a client-side route the SPA itself resolves - always hand back
-        # the same shell and let React Router take it from there.
+        # is either a root-level build file (favicon.svg, the PWA manifest,
+        # the service worker, icons/... - PROJECT.md 10.8) or a client-side
+        # route the SPA itself resolves. Serve the former as itself; fall
+        # back to the same shell for everything else and let React Router
+        # take it from there.
+        static_file = resolve_static_file(_STATIC_DIR, full_path)
+        if static_file is not None:
+            return FileResponse(static_file)
         return FileResponse(_STATIC_DIR / "index.html")

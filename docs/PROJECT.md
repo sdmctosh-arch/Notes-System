@@ -952,6 +952,42 @@ worked - only that the request was made.
 - Show a citation as a link with the source title.
 - The interface must show a clear empty state when the queue is empty.
 
+### 10.8 Installability (PWA)
+
+Not in the original plan. The interface is installable as a Progressive
+Web App - "Add to Home Screen" on the phone launches it full-screen, no
+browser chrome, with its own icon. Built with `vite-plugin-pwa`
+(`frontend/vite.config.js`) using its `generateSW` strategy - a
+Workbox-generated service worker, not a hand-written one; this app has no
+offline logic worth writing by hand.
+
+The service worker precaches only the built app shell (JS, CSS, HTML,
+icons). It never caches `/api/*` responses - `navigateFallbackDenylist` in
+`vite.config.js` keeps the SPA-navigation fallback off `/api/*`, and no
+runtime-caching rule exists for it either, so every item, chat, and auth
+request always reaches the backend live. An offline load gets the last-seen
+app shell, not stale queue data.
+
+Icons live at `frontend/public/icons/` (`icon-192.png`, `icon-512.png`,
+`icon-maskable-512.png`, `apple-touch-icon.png`), generated from the
+existing `favicon.svg` logo. `registerType: 'autoUpdate'` in `vite.config.js`
+means a new deploy takes over on the next load with no update prompt -
+single-user internal tool, not worth a custom "new version available" UI
+for.
+
+This uncovered a pre-existing bug in the backend's static-file serving
+(`backend/app/main.py`'s `spa_fallback`): the catch-all route served
+`index.html` for *any* unmatched path, including root-level build output
+like `favicon.svg` that isn't a client-side route at all - harmless for a
+favicon (browsers just fail to render it, silently), fatal for a service
+worker or manifest, which the browser refuses to register or parse when
+the response is HTML instead of JS/JSON. Fixed by checking, per request,
+whether the path resolves to a real file inside the static directory
+(`app/static_files.py`'s `resolve_static_file` - the same
+resolve()+containment guard `capture.py`/`vault.py`/`logs.py` use) and
+serving it as itself when so, falling back to `index.html` only for
+genuine SPA routes.
+
 ---
 
 ## 11. Part 2: digest email
@@ -1020,6 +1056,10 @@ desktop two-pane split view, and art slots for `media`/`recipe` items (all
 backdrop (`movie`/`tv`) or SteamGridDB cover/hero (`game`) for `media`, and
 a search-found dish photo for `recipe` (9.2, 9.3), falling back to the
 placeholder when no image is available.
+
+Also not in the original plan: the interface is installable as a PWA
+(10.8) - a manifest, generated icons, and a Workbox service worker that
+caches the app shell only, never `/api/*`.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates
 itself on every merge and was staying accurate long after this table
