@@ -86,7 +86,6 @@ $ArchiveDir    = Join-Path $VaultRoot  'Archive\Captures'
 $ProcessingDir = Join-Path $SystemRoot 'processing'
 $FailedDir     = Join-Path $SystemRoot 'failed'
 $QueuePending  = Join-Path $SystemRoot 'queue\pending'
-$QueueDone     = Join-Path $SystemRoot 'queue\done'
 $LogDir        = Join-Path $SystemRoot 'logs'
 $LedgerPath    = Join-Path $SystemRoot 'ledger.jsonl'
 $LockPath      = Join-Path $SystemRoot '.lock'
@@ -664,7 +663,11 @@ function Invoke-Enrichment {
         summary     = $parsed.summary
         detail      = $parsed.detail
         citations   = @($parsed.citations)
-        embed       = Get-EmbedFromUrl -Url $url
+        # Same cleaned value that becomes the row's url/url_rejected (9.4) -
+        # not the raw $url, which can carry model commentary (9.1's known
+        # defect table). Otherwise an item whose url_rejected fires can still
+        # end up with a working embed extracted from the rejected text.
+        embed       = if ($url -and (Test-CleanUrl $url)) { Get-EmbedFromUrl -Url $url } else { $null }
         structured  = $structured
         model       = $EnrichModel
         enriched_at = (Get-Date).ToString('o')
@@ -733,7 +736,12 @@ function Write-QueueRow {
     if ($DryRun) {
         Write-Log "  DRYRUN queue -> pending\$($row.queue_id).json [$category] $($row.title) status=$status"
     } else {
-        Set-Content -LiteralPath $target -Value ($row | ConvertTo-Json -Depth 10) -Encoding utf8
+        # 10.6: temp file then rename - a reader (the backend, or another
+        # processor run) must never see a half-written file. This is the far
+        # more common write path (every classified item, not just a
+        # re-enrich), so it needs the same guarantee Set-QueueItemAtomic
+        # already gives the re-enrich path below.
+        Set-QueueItemAtomic -Path $target -Item $row
     }
     return $target
 }
@@ -836,8 +844,17 @@ function Invoke-ReenrichRequests {
 
 # --- Setup -------------------------------------------------------------------
 
+# Deliberately not gated behind -DryRun: these are empty structural
+# directories from PROJECT.md 4.1/4.2's fixed layout, not data - creating one
+# that was already supposed to exist touches nothing a real run would
+# produce. Test-Sandbox.ps1 depends on this: it only pre-creates the
+# vault-side _Inbox/Archive\Captures itself and relies on the processor to
+# create the system-side working directories below (processing\, failed\,
+# queue\pending\, logs\) on every run, dry or live, so the rest of the
+# pipeline (Get-ChildItem below, log writing) has somewhere to read/write
+# even when nothing else gets written this run.
 foreach ($dir in @($InboxDir, $ArchiveDir, $ProcessingDir, $FailedDir,
-                   $QueuePending, $QueueDone, $LogDir)) {
+                   $QueuePending, $LogDir)) {
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
 
@@ -1013,7 +1030,13 @@ try {
 
             $result = Invoke-Classifier -Body $sendBody -NoteId $id
             $items  = @($result.items)
-            if ($items.Count -eq 0) { throw 'Classifier returned no items.' }
+            # classify-prompt.md rule 9: a valid capture always yields >=1
+            # item. An empty array is model flakiness (the same class of
+            # thing as a bad finishReason or MAX_TOKENS, both already
+            # transient below), not a structurally bad capture like missing
+            # frontmatter - retry it instead of failing permanently on the
+            # first occurrence.
+            if ($items.Count -eq 0) { throw [TransientApiError]::new('Classifier returned no items.') }
 
             $queued = 0; $enrichFailedCount = 0
             for ($i = 0; $i -lt $items.Count; $i++) {
