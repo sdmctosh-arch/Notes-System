@@ -4,7 +4,7 @@ import ItemLabel from './ItemLabel';
 import PinIcon from './PinIcon';
 import ArtImage from './ArtImage';
 import { categoryLabel } from '../categories';
-import { isNewItem, isStaleItem } from '../itemLabels';
+import { isArchivedStatus, isNewItem, isStaleItem } from '../itemLabels';
 
 // Categories with their own art get a placeholder image slot instead of
 // the plain icon badge, sized to match their detail-page treatment: media
@@ -30,7 +30,7 @@ function timeAgo(iso) {
 // the item into the right-hand pane instead of navigating away from it.
 export default function InboxRow({ item, onSelect, selected }) {
   const preview = item.enrichment?.summary || item.body || '';
-  const label = isNewItem(item) ? 'new' : isStaleItem(item) ? 'stale' : null;
+  const label = isArchivedStatus(item) ? null : isNewItem(item) ? 'new' : isStaleItem(item) ? 'stale' : null;
   const art = ROW_ART[item.category];
   const artUrl = item.enrichment?.structured?.image || null;
   const Tag = onSelect ? 'button' : Link;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ArtPlaceholder from './ArtPlaceholder';
 
 // Real per-category art (a TMDB poster/backdrop for media, a dish photo for
@@ -9,6 +9,13 @@ import ArtPlaceholder from './ArtPlaceholder';
 // is expected; nothing here is downloaded or cached, see PROJECT.md 10.4).
 export default function ArtImage({ src, alt = '', width, height, aspectRatio, radius = 8, label, fontSize = 8, className = '', style }) {
   const [failed, setFailed] = useState(false);
+
+  // Re-enrich can replace a dead src with a working one on the same mounted
+  // row/detail pane - without this, a prior load failure would pin the
+  // placeholder forever regardless of what src becomes afterward.
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
 
   if (!src || failed) {
     return (

@@ -16,7 +16,7 @@ import ArtImage from '../components/ArtImage';
 import { STRIPE } from '../components/ArtPlaceholder';
 import Prose from '../components/Prose';
 import { categoryColors, categoryLabel, isEnrichableCategory } from '../categories';
-import { isNewItem, isStaleItem } from '../itemLabels';
+import { isArchivedStatus, isNewItem, isStaleItem } from '../itemLabels';
 import { useDarkMode } from '../theme-hook';
 import Login from '../components/Login';
 
@@ -65,6 +65,11 @@ function MediaHero({ item }) {
   const m = item.enrichment?.structured || {};
   const caption = [item.enrichment?.kind === 'media_info' ? m.media_type : null, m.year].filter(Boolean).join(' · ');
   const [imgFailed, setImgFailed] = useState(false);
+  // Same reasoning as ArtImage's src-keyed reset - a re-enrich can swap in a
+  // working backdrop URL after a prior one failed to load.
+  useEffect(() => {
+    setImgFailed(false);
+  }, [m.backdrop]);
   const hasBackdrop = Boolean(m.backdrop) && !imgFailed;
 
   return (
@@ -112,6 +117,24 @@ function RecipeFigure({ item }) {
   return (
     <div className="mb-5">
       <ArtImage src={image} alt={item.title || ''} aspectRatio="4 / 3" radius={12} label="DISH · 4:3" className="w-full max-w-[340px]" style={{ border: '1px solid var(--color-border)' }} />
+    </div>
+  );
+}
+
+// PROJECT.md 10.4: an `unclassified` item's card must show the classifier's
+// ambiguity_note alongside title/body - it's the one piece of context that
+// explains why the model couldn't confidently categorize the note. Shown
+// whenever the field is set, not gated on category, since a queue item
+// from an older processor version could in principle carry one too.
+function AmbiguityNote({ item }) {
+  if (!item.ambiguity_note) return null;
+  return (
+    <div
+      className="rounded-2xl border p-4 mb-5 text-[13.5px] leading-relaxed"
+      style={{ background: 'var(--color-card-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}
+    >
+      <span className="font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Why unclassified: </span>
+      {item.ambiguity_note}
     </div>
   );
 }
@@ -373,7 +396,7 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
   // PROJECT.md 10.4: the Archive view is read-only - once an item has
   // moved to archived/filed/dismissed, hide the actions that only make
   // sense for something still being triaged.
-  const isArchived = ['archived', 'filed', 'dismissed'].includes(item.status);
+  const isArchived = isArchivedStatus(item);
   // Filed stays permanent from here - the vault note (and any Tandoor/Seerr
   // push) already happened outside this system and Unarchive can't safely
   // reverse either, so it only offers to undo the other two outcomes.
@@ -487,6 +510,7 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
       </div>
 
       <div ref={bodyRef} className="grow overflow-y-auto p-5">
+        <AmbiguityNote item={item} />
         <Body item={item} />
         {!isArchived && isEnrichableCategory(item.category) && <ReenrichButton queueId={item.queue_id} />}
         {!isArchived && <ChatPanel item={item} onUpdate={setItem} />}

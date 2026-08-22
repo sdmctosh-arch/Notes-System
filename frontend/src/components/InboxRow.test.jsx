@@ -68,6 +68,21 @@ describe('InboxRow', () => {
     expect(screen.getByText(/POSTER/)).toBeInTheDocument();
   });
 
+  it('shows a Stale label for an old pending item', () => {
+    renderRow({
+      item: item({ captured: '2000-01-01T00:00:00-04:00', status: 'pending' }),
+    });
+    expect(screen.getByText('Stale')).toBeInTheDocument();
+  });
+
+  it('does not show New/Stale labels once an item has left the pending queue (PROJECT.md 10.4)', () => {
+    renderRow({
+      item: item({ captured: '2000-01-01T00:00:00-04:00', status: 'archived' }),
+    });
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+    expect(screen.queryByText('New')).not.toBeInTheDocument();
+  });
+
   it('renders as a Link to the item by default, navigating on click', () => {
     renderRow({ item: item() });
     expect(screen.getByRole('link')).toHaveAttribute('href', '/items/a');

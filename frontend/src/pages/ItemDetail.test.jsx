@@ -62,6 +62,24 @@ describe('ItemDetail', () => {
     expect(screen.getByText('Pier 66 site')).toBeInTheDocument();
   });
 
+  it('shows the ambiguity_note for an unclassified item (PROJECT.md 10.4)', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        category: 'unclassified',
+        title: null,
+        body: 'Check on the thing with the guy',
+        ambiguity_note: "Couldn't tell if this was a todo or a reminder to look something up.",
+        enrichment: null,
+      }),
+    );
+
+    renderDetail();
+
+    expect(
+      await screen.findByText("Couldn't tell if this was a todo or a reminder to look something up."),
+    ).toBeInTheDocument();
+  });
+
   it('renders a recipe item with ingredients and steps', async () => {
     api.getItem.mockResolvedValueOnce(
       baseItem({
