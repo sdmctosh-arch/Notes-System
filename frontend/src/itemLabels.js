@@ -11,3 +11,10 @@ export function isNewItem(item) {
 export function isStaleItem(item) {
   return Date.now() - new Date(item.captured).getTime() > 7 * DAY_MS;
 }
+
+// PROJECT.md 10.4: "the label just stops rendering once the item is filed,
+// archived, or dismissed" - shared by every place that shows a New/Stale
+// label (InboxRow, ItemDetail) so the rule can't drift between them.
+export function isArchivedStatus(item) {
+  return ['archived', 'filed', 'dismissed'].includes(item.status);
+}
