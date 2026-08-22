@@ -43,6 +43,7 @@ param(
     [string]$EnrichPromptPath = 'E:\notes-system\scripts\enrich-prompt.md',
     [string]$KeyPath         = 'E:\notes-system\gemini.key.xml',
     [string]$TmdbKeyPath     = 'E:\notes-system\tmdb.key.xml',
+    [string]$SteamGridDbKeyPath = 'E:\notes-system\steamgriddb.key.xml',
     [Parameter(Mandatory)][string]$Model,
     [string]$EnrichModel     = 'gemini-3.5-flash',
     [int]$BodyLimit      = 800,
@@ -448,6 +449,72 @@ function Get-TmdbArt {
     }
 }
 
+function Get-SteamGridDbArt {
+    <# Best-effort cover/hero lookup for a `game` media_info item, direct
+       against SteamGridDB - the `game` counterpart to Get-TmdbArt above
+       (TMDB has no game catalog, so game/music were previously always
+       skipped there - see 9.2). No year-match guard here, unlike
+       Get-TmdbArt: SteamGridDB's autocomplete search doesn't return a
+       release date, and fetching one would mean an extra per-candidate
+       API call for a personal capture list where same-title,
+       different-year collisions are rare. Trusts the top (most relevant)
+       autocomplete result instead - the same "good enough, not exact"
+       bar already accepted for a recipe's photo (enrich-prompt.md).
+       Never throws - a missing key, no match, or an API error all just
+       mean no image. #>
+    param(
+        [AllowNull()][string]$Title,
+        [AllowNull()][string]$MediaType
+    )
+
+    if (-not $script:SteamGridDbApiKey) { return $null }
+    if ([string]::IsNullOrWhiteSpace($Title)) { return $null }
+    if ($MediaType -ne 'game') { return $null }
+
+    $headers = @{ Authorization = "Bearer $script:SteamGridDbApiKey" }
+    $encodedTitle = [uri]::EscapeDataString($Title)
+
+    try {
+        $search = Invoke-RestMethod -Uri "https://www.steamgriddb.com/api/v2/search/autocomplete/$encodedTitle" -Method Get -Headers $headers
+    }
+    catch {
+        Write-Log "  SteamGridDB search failed for '$Title' - $($_.Exception.Message)" 'WARN'
+        return $null
+    }
+    if (-not $search.success -or -not $search.data -or @($search.data).Count -eq 0) { return $null }
+    $gameId = $search.data[0].id
+
+    # Grids (tall cover art, our "poster" equivalent) and heroes (wide
+    # banner, our "backdrop" equivalent) are separate endpoints - a failure
+    # on one shouldn't drop the other.
+    $image = $null
+    try {
+        $grids = Invoke-RestMethod -Uri "https://www.steamgriddb.com/api/v2/grids/game/$gameId`?dimensions=600x900&types=static" -Method Get -Headers $headers
+        if ($grids.success -and $grids.data -and @($grids.data).Count -gt 0) { $image = $grids.data[0].url }
+    }
+    catch {
+        Write-Log "  SteamGridDB grid lookup failed for '$Title' (id=$gameId) - $($_.Exception.Message)" 'WARN'
+    }
+
+    $backdrop = $null
+    try {
+        $heroes = Invoke-RestMethod -Uri "https://www.steamgriddb.com/api/v2/heroes/game/$gameId`?types=static" -Method Get -Headers $headers
+        if ($heroes.success -and $heroes.data -and @($heroes.data).Count -gt 0) { $backdrop = $heroes.data[0].url }
+    }
+    catch {
+        Write-Log "  SteamGridDB hero lookup failed for '$Title' (id=$gameId) - $($_.Exception.Message)" 'WARN'
+    }
+
+    # Defensive validation (9.4's URL-validation rule) - unlike Get-TmdbArt's
+    # URLs, which this script constructs itself from a path fragment,
+    # these come straight from SteamGridDB's own `url` field.
+    if ($image -and -not (Test-CleanUrl $image)) { $image = $null }
+    if ($backdrop -and -not (Test-CleanUrl $backdrop)) { $backdrop = $null }
+    if (-not $image -and -not $backdrop) { return $null }
+
+    return @{ image = $image; backdrop = $backdrop }
+}
+
 function Invoke-Enrichment {
     param(
         [Parameter(Mandatory)]$Item,
@@ -552,9 +619,15 @@ function Invoke-Enrichment {
     elseif ($parsed.kind -eq 'media_info' -and $parsed.PSObject.Properties.Name -contains 'media') {
         $structured = $parsed.media
         # Not from Gemini's own search (unlike a recipe's image) - a direct,
-        # best-effort TMDB lookup using the title/year enrichment already
-        # confirmed and the classifier's schema-enforced media_type (9.2).
-        $art = Get-TmdbArt -Title $structured.title -MediaType (Get-ItemField $Item 'media_type') -Year $structured.year
+        # best-effort lookup using the title/year enrichment already
+        # confirmed and the classifier's schema-enforced media_type (9.2):
+        # TMDB for movie/tv, SteamGridDB for game, nothing for music/other.
+        $classifierMediaType = Get-ItemField $Item 'media_type'
+        $art = if ($classifierMediaType -eq 'game') {
+            Get-SteamGridDbArt -Title $structured.title -MediaType $classifierMediaType
+        } else {
+            Get-TmdbArt -Title $structured.title -MediaType $classifierMediaType -Year $structured.year
+        }
         $structured | Add-Member -NotePropertyName 'image'    -NotePropertyValue $(if ($art) { $art.image }    else { $null }) -Force
         $structured | Add-Member -NotePropertyName 'backdrop' -NotePropertyValue $(if ($art) { $art.backdrop } else { $null }) -Force
     }
@@ -773,6 +846,19 @@ elseif (Test-Path -LiteralPath $TmdbKeyPath) {
 else {
     $script:TmdbApiKey = $null
     Write-Log "TMDB not configured (`$env:TMDB_API_KEY or $TmdbKeyPath) - media items will not get a poster/backdrop image." 'WARN'
+}
+
+# Same optional, best-effort posture as TMDB above, for the game/movie
+# split TMDB can't cover on its own (9.2).
+if ($env:STEAMGRIDDB_API_KEY) {
+    $script:SteamGridDbApiKey = $env:STEAMGRIDDB_API_KEY
+}
+elseif (Test-Path -LiteralPath $SteamGridDbKeyPath) {
+    $script:SteamGridDbApiKey = [Net.NetworkCredential]::new('', (Import-Clixml -LiteralPath $SteamGridDbKeyPath)).Password
+}
+else {
+    $script:SteamGridDbApiKey = $null
+    Write-Log "SteamGridDB not configured (`$env:STEAMGRIDDB_API_KEY or $SteamGridDbKeyPath) - game items will not get a cover/hero image." 'WARN'
 }
 
 if (Test-Path -LiteralPath $LockPath) {
