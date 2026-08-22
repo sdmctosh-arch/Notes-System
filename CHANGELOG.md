@@ -4,6 +4,26 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix path traversal in queue_id path construction; least-privilege CI permissions (#29)
+
+### Summary
+GitHub code scanning (CodeQL) flagged 25 `py/path-injection` alerts (storage.py, capture.py, vault.py) plus one `actions/missing-workflow-permissions` warning. This PR fixes the real gap and the CI permissions warning; the capture.py/vault.py alerts are handled separately (see below).
+
+- **`storage.py` (real vulnerability, confirmed exploitable):** every function taking a `queue_id` from a URL path segment built `QUEUE_PENDING_DIR/QUEUE_ARCHIVED_DIR / f"{queue_id}.json"` with no check that `queue_id` couldn't contain `../`. Unlike `capture.py`'s `read_capture` and `vault.py`'s `read_vault_note` (which both already `resolve()` and check containment - see their existing passing tests), storage.py had nothing. Confirmed before the fix: `storage.get_item("../../victim")` returned a planted file's content from outside the queue directory, no error.
+- **Fix:** `_validate_queue_id` - an allowlist regex (`^[A-Za-z0-9._-]+$`, plus rejecting bare `.`/`..`) checked at the top of every function that takes an externally-supplied `queue_id`: `_find_item_path`, `update_item`, `get_pending_item`, `add_chat_messages`, `set_pinned`, `request_reenrich`, `unarchive_item`, `move_to_archived`. `create_item`'s `queue_id` is server-generated (`secrets.token_hex`), never attacker-influenced, so it's untouched.
+- **`backend-tests.yml`:** added `permissions: contents: read` - the job only checks out code and runs pytest, so it never needs whatever broader default the repo/org grants `GITHUB_TOKEN` otherwise.
+
+### Test plan
+- [x] New `backend/tests/test_storage.py` (17 tests): validator unit tests (rejects `../`, backslash, embedded slashes, bare `.`/`..`, empty string; accepts real id shapes), plus `get_item`/`update_item`/`move_to_archived` tests that plant a file outside the queue tree and confirm it's unreachable, plus one HTTP-level 404 test.
+- [x] Verified the tests actually catch the bug: reverted `storage.py` alone and reran - the traversal tests failed with `DID NOT RAISE ItemNotFoundError` (confirming genuine exploitability), restored the fix and reran clean.
+- [x] Full suite: 121/121 pass (104 existing + 17 new).
+
+### Not in this PR
+The `capture.py`/`vault.py` alerts (7 of the 25) look like CodeQL false positives - both already `resolve()` + check containment before any file access, and both already have passing regression tests proving it (`test_read_capture_rejects_path_traversal`, `test_read_vault_note_rejects_path_traversal`), predating this PR. Planning to dismiss those specific alerts with that reasoning rather than change already-correct code, but wanted the real fix landed first.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix TMDB query encoding and move sandbox path fully outside E:\notes-system (#28)
 
 ### Summary
