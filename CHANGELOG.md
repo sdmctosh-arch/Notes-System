@@ -4,6 +4,45 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-21 - Fix Tandoor push: recipe-from-source only parses, never saves
+
+### Summary
+
+Committed directly to `main` rather than through a PR, so the automated
+changelog workflow (`.github/workflows/changelog.yml`) never fired - added
+by hand instead. Going forward, changes are routed through a branch and PR
+so that automation keeps working without manual entries like this one.
+
+- **Root cause**: "Keep in vault" on a recipe looked like it worked - Tandoor
+  returned `200 OK` with a fully parsed recipe body - but nothing ever
+  appeared in Tandoor. Reading Tandoor's actual server source
+  (`cookbook/views/api.py::RecipeUrlImportView`) showed why:
+  `/api/recipe-from-source/` only scrapes and previews a recipe; there's no
+  `.save()` in the code path that handles a raw HTML payload. Tandoor's own
+  frontend takes that parsed object and POSTs it to `/api/recipe/` to
+  actually persist it.
+- **Fix** (`backend/app/tandoor.py`): `push_recipe` now makes both calls,
+  and fills in `servings` and each ingredient's `order` before the create
+  call - Tandoor's real serializer rejects both as null, but the parse step
+  always returns them null (there's no user in this flow to ask, unlike
+  Tandoor's own UI).
+- A separate, unrelated issue surfaced during diagnosis: `TANDOOR_URL`
+  pointed at a host:port where a different local app (Tunarr) had also
+  bound port 8000, so the push was silently hitting the wrong server. No
+  code change - resolved by moving the conflicting process off that port.
+- `docs/PROJECT.md` (9.3) and `.env.example` updated in the same change,
+  per CLAUDE.md's rule to keep the spec in sync.
+
+### Test plan
+
+- [x] Backend: `pytest tests/test_tandoor.py -v` - 7 passed, including new
+      coverage for the two-call contract and the required-field fill-in
+- [x] Verified end-to-end against a live self-hosted Tandoor instance -
+      confirmed `201 Created` and a real recipe row, not just a `200` parse
+      response
+- [x] Rebuilt and redeployed the `notes-interface` container; confirmed the
+      running image contains the fix
+
 ## 2026-08-21 - Replace star with Pin; add welcome header, drawer nav, desktop split view, and per-category art placeholders (#14)
 
 ### Summary
