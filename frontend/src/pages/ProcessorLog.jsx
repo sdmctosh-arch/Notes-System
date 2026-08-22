@@ -5,6 +5,15 @@ import Login from '../components/Login';
 import DesktopPageShell from '../components/DesktopPageShell';
 import { useIsDesktop } from '../useIsDesktop';
 
+// The processor appends chronologically, so the newest activity is always
+// the last line - reverse for display so it's the first thing visible
+// without scrolling, which is what you want while watching a live run.
+function newestFirst(text) {
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  return lines.reverse().join('\n');
+}
+
 export default function ProcessorLog() {
   const [dates, setDates] = useState(null);
   const [date, setDate] = useState(null);
@@ -99,7 +108,7 @@ export default function ProcessorLog() {
       {content !== null && (
         <div className="grow overflow-y-auto mx-5 mb-6 rounded-2xl border p-4" style={{ background: 'var(--color-card-bg)', borderColor: 'var(--color-border)' }}>
           <pre className="text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--color-text-secondary)' }}>
-            {content}
+            {newestFirst(content)}
           </pre>
         </div>
       )}
