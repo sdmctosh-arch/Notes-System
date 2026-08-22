@@ -4,6 +4,26 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Add SteamGridDB cover/hero lookup for game media items (#17)
+
+### Summary
+- TMDB has no game catalog, so a `game` media item's `structured.image`/`structured.backdrop` were always `null` - `Get-TmdbArt` skips `game`/`music` by design.
+- New `Get-SteamGridDbArt` fills that gap for `game`: cover art via SteamGridDB's `grids` endpoint, a wide banner via `heroes`, into the same `structured.image`/`structured.backdrop` fields the frontend already renders generically (no frontend changes needed).
+- Same optional, best-effort posture as TMDB/Tandoor/Seerr: no key configured, no search match, or an API error just means no image, never a failed item. `$env:STEAMGRIDDB_API_KEY` or a `steamgriddb.key.xml` DPAPI file, same pattern as `tmdb.key.xml`/`gemini.key.xml`.
+- Deliberately **no year-match guard**, unlike TMDB - SteamGridDB's search doesn't return a release date, and fetching one would mean a per-candidate lookup call. Trusts the top autocomplete result instead, the same "good enough" bar already accepted for a recipe's photo.
+- A SteamGridDB-returned URL is still validated with the existing URL-safety rule (9.4) before being stored, since it comes straight from an external response rather than being built by this script (unlike TMDB's URLs).
+- `docs/PROJECT.md` updated in the same PR (2.4, 9.2, 9.4, 10.4, 10.5, 14).
+
+### Setup required
+Game cover/hero images need `STEAMGRIDDB_API_KEY` (env var) or a DPAPI `steamgriddb.key.xml` on the processor machine - optional, nothing breaks without it.
+
+### Test plan
+- [x] `pwsh` parse check - no syntax errors
+- [x] Standalone unit tests for `Get-SteamGridDbArt` (no key, non-game skip, full success path, no search match, partial API failure tolerated, invalid URL dropped) - all pass
+- [ ] Not exercised against the live SteamGridDB API yet - verify after this merges and a key is configured
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-22 - Fix re-enrich dropping media_type, silently skipping TMDB image lookup (#16)
 
 ### Summary
