@@ -450,12 +450,16 @@ function Get-TmdbArt {
 
     $dateField = if ($MediaType -eq 'movie') { 'release_date' } else { 'first_air_date' }
     $endpoint  = "https://api.themoviedb.org/3/search/$MediaType"
+    # Explicit encoding, not -Body's form-encoded query string (which uses
+    # '+' for spaces) - the same class of thing that broke Seerr's stricter
+    # query validator (backend/app/seerr.py). TMDB tolerates '+' in
+    # practice, but there's no reason to rely on that when
+    # Get-SteamGridDbArt right below already does this the explicit way.
+    $encodedKey   = [uri]::EscapeDataString($script:TmdbApiKey)
+    $encodedTitle = [uri]::EscapeDataString($Title)
 
     try {
-        $resp = Invoke-RestMethod -Uri $endpoint -Method Get -Body @{
-            api_key = $script:TmdbApiKey
-            query   = $Title
-        }
+        $resp = Invoke-RestMethod -Uri "$endpoint`?api_key=$encodedKey&query=$encodedTitle" -Method Get
     }
     catch {
         Write-Log "  TMDB search failed for '$Title' - $($_.Exception.Message)" 'WARN'
