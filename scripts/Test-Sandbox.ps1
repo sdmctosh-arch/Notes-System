@@ -57,11 +57,18 @@ if (Test-Path -LiteralPath $SandboxRoot) {
 New-Item -ItemType Directory -Path $inbox -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $sandboxVault 'Archive\Captures') -Force | Out-Null
 
-$allCaptures = Get-ChildItem -LiteralPath $corpusDir -Filter '*.md' | Sort-Object Name
+$allCaptures = @(Get-ChildItem -LiteralPath $corpusDir -Filter '*.md' | Sort-Object Name)
 $sample = if ($SampleCount -le 0 -or $SampleCount -ge $allCaptures.Count) {
     $allCaptures
 } else {
-    $allCaptures | Select-Object -First $SampleCount
+    # CLAUDE.md's collection-unrolling gotcha: @(...) alone isn't enough
+    # here, because this array is the implicit *output* of the else block,
+    # not a direct assignment - a single-element array still gets flattened
+    # to a scalar when it passes through as block output (the same reason
+    # a function needs `return ,$hashSet`). The leading comma is what
+    # actually stops the unroll; @() alone left -SampleCount 1 producing a
+    # bare FileInfo with no .Count, breaking the message below.
+    ,@($allCaptures | Select-Object -First $SampleCount)
 }
 
 foreach ($f in $sample) {
