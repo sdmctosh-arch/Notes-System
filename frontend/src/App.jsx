@@ -9,6 +9,7 @@ import Lists from './pages/Lists';
 import CaptureView from './pages/CaptureView';
 import NewItem from './pages/NewItem';
 import Settings from './pages/Settings';
+import ProcessorLog from './pages/ProcessorLog';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/capture/:captureId" element={<CaptureView />} />
       <Route path="/new" element={<NewItem />} />
       <Route path="/settings" element={<Settings />} />
+      <Route path="/log" element={<ProcessorLog />} />
     </Routes>
   );
 }

@@ -7,6 +7,7 @@ from pathlib import Path
 QUEUE_DIR = Path(os.environ.get("QUEUE_DIR", "/data/queue"))
 VAULT_DIR = Path(os.environ.get("VAULT_DIR", "/data/vault"))
 ARCHIVE_DIR = Path(os.environ.get("ARCHIVE_DIR", "/data/archive"))
+LOG_DIR = Path(os.environ.get("LOG_DIR", "/data/logs"))
 
 QUEUE_PENDING_DIR = QUEUE_DIR / "pending"
 QUEUE_ARCHIVED_DIR = QUEUE_DIR / "archived"

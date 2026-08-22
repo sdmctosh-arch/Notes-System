@@ -18,14 +18,17 @@ def sandbox(tmp_path, monkeypatch):
     queue_dir = tmp_path / "queue"
     vault_dir = tmp_path / "vault"
     archive_dir = tmp_path / "archive"
+    logs_dir = tmp_path / "logs"
     (queue_dir / "pending").mkdir(parents=True)
     (queue_dir / "archived").mkdir(parents=True)
     vault_dir.mkdir()
     archive_dir.mkdir()
+    logs_dir.mkdir()
 
     monkeypatch.setenv("QUEUE_DIR", str(queue_dir))
     monkeypatch.setenv("VAULT_DIR", str(vault_dir))
     monkeypatch.setenv("ARCHIVE_DIR", str(archive_dir))
+    monkeypatch.setenv("LOG_DIR", str(logs_dir))
     monkeypatch.setenv("PASSWORD_HASH", TEST_PASSWORD_HASH)
     monkeypatch.setenv("SECRET_KEY", "test-secret-key")
 
@@ -87,6 +90,7 @@ def sandbox(tmp_path, monkeypatch):
             "queue_dir": queue_dir,
             "vault_dir": vault_dir,
             "archive_dir": archive_dir,
+            "logs_dir": logs_dir,
             "seed": staticmethod(seed),
             "password": TEST_PASSWORD,
         },

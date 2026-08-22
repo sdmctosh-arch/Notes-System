@@ -345,6 +345,41 @@ def test_capture_endpoint_requires_auth(sandbox):
     assert resp.status_code == 401
 
 
+def test_logs_endpoint_lists_dates_newest_first(sandbox):
+    (sandbox.logs_dir / "processor-2026-08-11.log").write_text("a", encoding="utf-8")
+    (sandbox.logs_dir / "processor-2026-08-20.log").write_text("b", encoding="utf-8")
+
+    resp = sandbox.client.get("/api/logs")
+    assert resp.status_code == 200
+    assert resp.json() == ["2026-08-20", "2026-08-11"]
+
+
+def test_logs_endpoint_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/logs")
+    assert resp.status_code == 401
+
+
+def test_log_endpoint_returns_content(sandbox):
+    (sandbox.logs_dir / "processor-2026-08-11.log").write_text(
+        "Processor 0.5 starting.\nDone.\n", encoding="utf-8"
+    )
+    resp = sandbox.client.get("/api/logs/2026-08-11")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["date"] == "2026-08-11"
+    assert "Done." in body["content"]
+
+
+def test_log_endpoint_404_for_missing_date(sandbox):
+    resp = sandbox.client.get("/api/logs/2026-08-11")
+    assert resp.status_code == 404
+
+
+def test_log_endpoint_requires_auth(sandbox):
+    resp = sandbox.raw_client.get("/api/logs/2026-08-11")
+    assert resp.status_code == 401
+
+
 def test_keep_recipe_succeeds_even_when_tandoor_push_fails(sandbox, monkeypatch):
     from app import main
 

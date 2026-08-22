@@ -39,6 +39,8 @@ export const api = {
     request(`/api/vault/${encodeURIComponent(folder)}/${encodeURIComponent(filename)}`),
   search: (q) => request(`/api/search?q=${encodeURIComponent(q)}`),
   getCapture: (captureId) => request(`/api/capture/${encodeURIComponent(captureId)}`),
+  listLogDates: () => request('/api/logs'),
+  getLog: (date) => request(`/api/logs/${encodeURIComponent(date)}`),
   sendChatMessage: (id, message) =>
     request(`/api/items/${encodeURIComponent(id)}/chat`, {
       method: 'POST',
