@@ -4,6 +4,25 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix silent TMDB/SteamGridDB auth failures caused by PSCredential vs SecureString (#18)
+
+### Summary
+- Every `media_info` item was getting a real `HTTP 401` from TMDB in production, even with a freshly-verified, correct API key.
+- Root cause: `gemini.key.xml` holds a bare `SecureString`, but `tmdb.key.xml` was created via `Get-Credential | Export-Clixml` (a `PSCredential`) - following this project's own setup instructions from an earlier session. `[Net.NetworkCredential]::new('', (Import-Clixml ...)).Password` only handles a bare `SecureString` correctly; handed a `PSCredential`, it silently coerces the whole object to its `.ToString()` and uses the literal string `"System.Management.Automation.PSCredential"` (41 characters) as the "password" - no exception, no warning, just an auth failure downstream that looks exactly like a bad or rate-limited key.
+- New `Get-DecryptedSecret` helper detects which shape a secret file holds and extracts correctly either way. All three key-loading call sites (Gemini, TMDB, SteamGridDB) now go through it.
+- **The existing `tmdb.key.xml` does not need to be recreated** - confirmed directly against both real key files on the production machine: `gemini.key.xml` (bare `SecureString`) and `tmdb.key.xml` (`PSCredential`) both now decrypt to the correct value through the new helper.
+- Documented in `CLAUDE.md`'s "PowerShell errors to avoid" list, per this project's own convention.
+
+### How this was found
+Diagnosed live against the deployed script and real captures - ruled out TMDB key-propagation delay, request bursting, and Task Scheduler execution context (a throwaway diagnostic scheduled task using the same account/binary succeeded every time) before adding a temporary debug line to the *deployed* copy only (never committed) that printed the key's actual length/prefix/suffix reaching the HTTP call - which showed `len=41, "Syst...tial"`, immediately identifying the `PSCredential.ToString()` coercion. Debug line was removed before committing this fix.
+
+### Test plan
+- [x] `pwsh` parse check - no syntax errors
+- [x] `Get-DecryptedSecret` tested directly against both real production key files (`gemini.key.xml`, `tmdb.key.xml`) - both now return the correct plaintext value
+- [ ] Not yet re-verified with a live re-enrich against the real TMDB API after this deploys - will confirm after merge
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-22 - Add SteamGridDB cover/hero lookup for game media items (#17)
 
 ### Summary
