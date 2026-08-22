@@ -125,13 +125,13 @@ export default function Inbox() {
 
   if (isDesktop) {
     return (
-      <div className="min-h-dvh flex" style={{ background: 'var(--color-bg)' }}>
+      <div className="h-dvh flex overflow-hidden" style={{ background: 'var(--color-bg)' }}>
         <DesktopRail onLoggedOut={() => setLoggedOut(true)} />
 
-        <div className="w-[420px] shrink-0 flex flex-col" style={{ borderRight: '1px solid var(--color-border)' }}>
+        <div className="w-[420px] shrink-0 h-full flex flex-col" style={{ borderRight: '1px solid var(--color-border)' }}>
           <div className="px-5 pt-6 pb-1">
             <h1 className="font-serif font-semibold text-2xl tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
-              Inbox
+              {greeting()}
             </h1>
             <div className="text-[12.5px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
               {items ? `${items.length} item${items.length === 1 ? '' : 's'}` : 'Loading…'}
@@ -142,12 +142,15 @@ export default function Inbox() {
 
           {items && visible.length === 0 && <EmptyState />}
 
-          <div className="flex flex-col gap-2.5 px-4 pb-6 overflow-y-auto">
+          {/* grow + min-h-0 so this pane scrolls on its own, independent of
+              the detail pane - without min-h-0 a flex child won't shrink
+              below its content size, so overflow-y-auto never kicks in. */}
+          <div className="grow min-h-0 flex flex-col gap-2.5 px-4 pb-6 overflow-y-auto">
             <ItemList visible={visible} onSelect={(item) => setSelectedId(item.queue_id)} selectedId={selectedId} />
           </div>
         </div>
 
-        <div className="grow min-w-0">
+        <div className="grow min-w-0 h-full">
           {selectedId ? (
             <ItemDetail
               id={selectedId}
