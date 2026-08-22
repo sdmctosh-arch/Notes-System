@@ -24,7 +24,14 @@
 param(
     [string]$RepoRoot    = (Split-Path $PSScriptRoot -Parent),
     [string]$SystemRoot  = 'E:\notes-system',
-    [string]$SandboxRoot = 'E:\notes-system\sandbox-test',
+    # Outside E:\notes-system entirely, not just a subfolder of it - CLAUDE.md
+    # rule 1 says "never write to E:\notes-system during development," with
+    # no subfolder carve-out, and $env:TEMP satisfies that literally instead
+    # of relying on "this subfolder is wiped every run" to make the same
+    # point. $SystemRoot above still points at the real E:\notes-system, but
+    # only to read the existing gemini.key.xml - reading a secret is
+    # harmless; only writes need to be sandboxed (see .DESCRIPTION).
+    [string]$SandboxRoot = (Join-Path $env:TEMP 'notes-system-sandbox-test'),
     [int]$SampleCount    = 6,
     [string]$Model       = 'gemini-3.1-flash-lite',
     [string]$EnrichModel = 'gemini-3.5-flash',
