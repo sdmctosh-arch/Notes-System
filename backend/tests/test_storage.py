@@ -76,10 +76,16 @@ def test_move_to_archived_rejects_traversal_queue_id(sandbox):
     assert (sandbox.queue_dir.parent / "victim.json").exists()
 
 
-def test_api_rejects_dot_dot_queue_id(sandbox):
-    # A single ".." path segment (no slash needed inside it) routes to
-    # {queue_id} exactly like any other value - the plain HTTP-level proof
-    # that the guard is wired into the actual endpoint, not just the
-    # storage-layer unit tests above.
-    resp = sandbox.client.get("/api/items/..")
-    assert resp.status_code == 404
+# No HTTP-level traversal test here, deliberately - checked by hand against
+# a real uvicorn instance (not this file's in-process TestClient, which
+# doesn't go through actual HTTP parsing) and both a literal ".." and a
+# percent-encoded "%2e%2e"/"%2e%2e%2f%2e%2e%2fvictim" already get rejected
+# by Starlette's own router before the app ever sees a queue_id - true with
+# or without _validate_queue_id, confirmed against the pre-fix code too. An
+# HTTP-level test asserting 404 here would pass for the wrong reason, the
+# same mistake this file corrected once already (see the ItemNotFoundError
+# import comment above). The function-level tests above are the real proof:
+# CodeQL's flagged sink is a Python function taking an untrusted string, not
+# a specific URL encoding trick, and _validate_queue_id protects it
+# regardless of what any particular framework version's routing does or
+# doesn't already catch.
