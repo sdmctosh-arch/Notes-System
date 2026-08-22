@@ -4,6 +4,22 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Remove a path-traversal test that passed for the wrong reason (#30)
+
+### Summary
+While verifying PR #29's fix against a real `uvicorn` instance (not the in-process `TestClient`, which skips real HTTP parsing), found that `test_api_rejects_dot_dot_queue_id` was passing regardless of the fix: Starlette's own router already rejects a literal `..` and percent-encoded `%2e%2e`/encoded-slash traversal attempts before the app ever sees them, both with and without `_validate_queue_id` in place. The test's 404 assertion was true, just not for the reason its comment claimed.
+
+Removed it and left a comment explaining why - the storage-layer function tests are the real proof (already verified by hand: reverted storage.py, confirmed `get_item("../../victim")` returned the planted file's content, `DID NOT RAISE ItemNotFoundError`, restored the fix, confirmed clean).
+
+### Test plan
+- [x] `python -m pytest -q` - 120/120 pass
+- [x] Confirmed by hand against real `uvicorn` (both pre- and post-#29 code) that the removed test's premise was wrong
+
+No functional code changed - test suite only.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix path traversal in queue_id path construction; least-privilege CI permissions (#29)
 
 ### Summary
