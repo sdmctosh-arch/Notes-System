@@ -826,7 +826,11 @@ actually enriches (todo and grocery never are - see 9.2's `$TaskCategories`
 marker harmlessly if one shows up anyway). The processor's
 `Invoke-ReenrichRequests` (in `Invoke-NoteProcessor-v2.ps1`) scans for these
 markers on every run, redoes pass 2 with the item's current category/title/
-body/url, and removes the marker either way. On success it overwrites
+body/url/media_type, and removes the marker either way. `media_type` is
+included alongside the rest so a re-enriched `media` item still gets a
+TMDB poster/backdrop lookup (9.2) - without it, `Get-TmdbArt` has nothing
+to tell it `movie` from `tv` from `game`/`music` and silently skips the
+image every time. On success it overwrites
 `enrichment` and sets `status` to `enriched`; on failure it leaves the item
 completely unchanged (never wipes a working enrichment because a retry
 failed) and just logs a warning. The interface never sees whether the retry
