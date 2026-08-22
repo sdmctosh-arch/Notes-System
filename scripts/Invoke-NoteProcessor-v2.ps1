@@ -177,6 +177,33 @@ function New-UniquePath {
     }
 }
 
+function Get-DecryptedSecret {
+    <# A DPAPI-protected secret file can hold either a bare SecureString
+       (e.g. `Read-Host -AsSecureString | Export-Clixml`, how
+       gemini.key.xml was made) or a PSCredential (`Get-Credential |
+       Export-Clixml`, the natural thing to reach for and what this
+       project's own setup instructions told a user to run for
+       tmdb.key.xml). [NetworkCredential]::new() only accepts the former -
+       handed a PSCredential instead, it doesn't throw, it silently
+       coerces the whole object to its .ToString() (the literal string
+       "System.Management.Automation.PSCredential") and returns THAT as
+       the "password", with no error to signal anything went wrong. Every
+       secret file this script reads goes through this function so either
+       shape works, instead of requiring undocumented knowledge of which
+       cmdlet to export with. #>
+    param([Parameter(Mandatory)][string]$Path)
+
+    $obj = Import-Clixml -LiteralPath $Path
+    $secure = if ($obj -is [Security.SecureString]) {
+        $obj
+    } elseif ($obj -is [Management.Automation.PSCredential]) {
+        $obj.Password
+    } else {
+        throw "Unexpected secret file format at $Path - expected a SecureString or a PSCredential, got $($obj.GetType().FullName)."
+    }
+    return [Net.NetworkCredential]::new('', $secure).Password
+}
+
 function Test-CleanUrl {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
 
@@ -828,7 +855,7 @@ if ($env:GEMINI_API_KEY) {
     $script:ApiKey = $env:GEMINI_API_KEY
 }
 elseif (Test-Path -LiteralPath $KeyPath) {
-    $script:ApiKey = [Net.NetworkCredential]::new('', (Import-Clixml -LiteralPath $KeyPath)).Password
+    $script:ApiKey = Get-DecryptedSecret -Path $KeyPath
 }
 else {
     throw "No API key available. Set `$env:GEMINI_API_KEY or provide -KeyPath $KeyPath."
@@ -841,7 +868,7 @@ if ($env:TMDB_API_KEY) {
     $script:TmdbApiKey = $env:TMDB_API_KEY
 }
 elseif (Test-Path -LiteralPath $TmdbKeyPath) {
-    $script:TmdbApiKey = [Net.NetworkCredential]::new('', (Import-Clixml -LiteralPath $TmdbKeyPath)).Password
+    $script:TmdbApiKey = Get-DecryptedSecret -Path $TmdbKeyPath
 }
 else {
     $script:TmdbApiKey = $null
@@ -854,7 +881,7 @@ if ($env:STEAMGRIDDB_API_KEY) {
     $script:SteamGridDbApiKey = $env:STEAMGRIDDB_API_KEY
 }
 elseif (Test-Path -LiteralPath $SteamGridDbKeyPath) {
-    $script:SteamGridDbApiKey = [Net.NetworkCredential]::new('', (Import-Clixml -LiteralPath $SteamGridDbKeyPath)).Password
+    $script:SteamGridDbApiKey = Get-DecryptedSecret -Path $SteamGridDbKeyPath
 }
 else {
     $script:SteamGridDbApiKey = $null

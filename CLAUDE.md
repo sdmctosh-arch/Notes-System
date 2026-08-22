@@ -55,6 +55,20 @@ These occurred in this project. Do not repeat them.
   'path')" when the backup path is `$null`, even though `$null` is meant to
   mean "no backup."
 - The script targets `pwsh.exe`, not `powershell.exe`.
+- `[Net.NetworkCredential]::new('', $secureStringOrCredential).Password` only
+  decrypts correctly when the second argument is a bare `SecureString`
+  (`Read-Host -AsSecureString | Export-Clixml`, how `gemini.key.xml` was
+  made). Handed a `PSCredential` instead (`Get-Credential | Export-Clixml` -
+  the natural thing to reach for, and what this project's own setup
+  instructions told a user to run for `tmdb.key.xml`), it does not throw: it
+  silently coerces the whole object via `.ToString()` and returns the
+  literal string `"System.Management.Automation.PSCredential"` as the
+  "password," with no error to signal anything went wrong - every downstream
+  API call then fails with an auth error that looks like a bad or
+  rate-limited key, not a type mismatch. Use `Get-DecryptedSecret` (in
+  `Invoke-NoteProcessor-v2.ps1`) for every secret file - it detects which
+  shape it got and extracts the right way for both, instead of requiring
+  undocumented knowledge of which cmdlet a given key file was exported with.
 
 ## Testing
 
