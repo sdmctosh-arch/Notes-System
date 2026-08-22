@@ -4,6 +4,25 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Wire real images into recipe and media items (#15)
+
+### Summary
+- Recipe items now get a dish photo the enrichment call finds itself, using its existing `google_search`/`url_context` tools - preferring the source page's image, falling back to a similar recipe online for the same dish. Validated with the same URL rule as the top-level `url` field (9.4); an invalid result is dropped to `null`, not stored.
+- Media items now get a poster/backdrop looked up directly against the TMDB API (`Get-TmdbArt`), using the title/year enrichment already confirmed and the classifier's schema-enforced `media_type` (skips `game`/`music`, same as the existing Seerr push). Optional and best-effort, same posture as Tandoor/Seerr - no key configured, no year, or no match just means no image.
+- Both are stored as plain URLs and hotlinked by the frontend (`ArtImage.jsx`), which falls back to the existing striped placeholder when there's no URL or the image fails to load.
+- `docs/PROJECT.md` (2.4, 9.2, 9.3, 9.4, 10.4, 14) updated in the same PR per CLAUDE.md rule 8.
+
+### Setup required
+Media images need `TMDB_API_KEY` (env var) or a DPAPI `tmdb.key.xml` (same pattern as `gemini.key.xml`) on the processor machine - it's optional, so nothing breaks without it, media items just keep the placeholder. Recipe images need no new credential.
+
+### Test plan
+- [x] `pwsh` parse check on `Invoke-NoteProcessor-v2.ps1` - no syntax errors
+- [x] Standalone unit tests for `Get-TmdbArt`/`Test-CleanUrl` integration (no key, game/music skip, year match/no-match, invalid image URL dropped, `$null` art guarded under strict mode) - all pass
+- [x] Frontend: `npx vitest run` - 99/99 passed, including new coverage for real-image rendering and image-load-failure fallback in `InboxRow` and `ItemDetail`
+- [ ] Not exercised against a live TMDB API or a live recipe-image search - verify after the first real capture of each kind, same as the Seerr/Tandoor pushes
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-21 - Fix Tandoor push: recipe-from-source only parses, never saves
 
 ### Summary
