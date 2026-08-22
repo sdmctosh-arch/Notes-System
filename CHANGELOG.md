@@ -4,6 +4,22 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix Seerr push: percent-encode the search query, not httpx's default + (#19)
+
+### Summary
+- Every "Keep in vault" on a movie/show has been silently failing to push to Seerr. Confirmed live: a real Seerr instance rejects the search call with `400 Bad Request` - `"Parameter 'query' must be url encoded. Its value may not contain reserved characters."`
+- Root cause: `httpx.get(url, params={"query": item.title}, ...)` encodes a space as `+` (the `application/x-www-form-urlencoded` convention httpx's dict-style `params=` follows), but Seerr's strict query validator only accepts `%20` and treats `+` as an invalid reserved character.
+- Fix: build the query with `urllib.parse.quote(item.title, safe="")`, which percent-encodes a space as `%20`.
+- New regression test asserts `%20` appears and `+` does not, for a title with a space.
+- `docs/PROJECT.md` 9.2 updated - this integration was "not verified against a live instance"; it now is, with this fix confirmed against one.
+
+### Test plan
+- [x] `backend/tests/test_seerr.py` - 9/9 pass (including the new regression test)
+- [x] Full backend suite - 103/103 pass
+- [x] Verified against the live Seerr instance directly: the same search call that previously 400'd now returns `200 OK` with real results for "American Gangster" (the exact title that surfaced this bug)
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-22 - Fix silent TMDB/SteamGridDB auth failures caused by PSCredential vs SecureString (#18)
 
 ### Summary
