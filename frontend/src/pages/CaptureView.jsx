@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import Login from '../components/Login';
+import DesktopPageShell from '../components/DesktopPageShell';
+import { useIsDesktop } from '../useIsDesktop';
 
 // Same frontmatter block shape as vault notes, but the body here is the
 // user's raw dictated/typed text - never pass it through react-markdown,
@@ -18,6 +20,8 @@ export default function CaptureView() {
   const navigate = useNavigate();
   const [content, setContent] = useState(null);
   const [error, setError] = useState(null);
+  const [loggedOut, setLoggedOut] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const load = () => {
     setContent(null);
@@ -27,8 +31,15 @@ export default function CaptureView() {
 
   useEffect(load, [captureId]);
 
-  if (error?.status === 401) {
-    return <Login onSuccess={load} />;
+  if (loggedOut || error?.status === 401) {
+    return (
+      <Login
+        onSuccess={() => {
+          setLoggedOut(false);
+          load();
+        }}
+      />
+    );
   }
   if (error) {
     return (
@@ -39,8 +50,8 @@ export default function CaptureView() {
   }
   if (content === null) return null;
 
-  return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+  const body = (
+    <>
       <div className="px-5 pt-6 pb-4">
         <button
           onClick={() => navigate(-1)}
@@ -61,6 +72,16 @@ export default function CaptureView() {
           {stripFrontmatter(content)}
         </div>
       </div>
+    </>
+  );
+
+  if (isDesktop) {
+    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{body}</DesktopPageShell>;
+  }
+
+  return (
+    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+      {body}
     </div>
   );
 }
