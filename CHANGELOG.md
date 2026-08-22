@@ -4,6 +4,21 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Fix frontend: missing ambiguity_note, New/Stale label leaking into Archive (#24)
+
+### Summary
+- unclassified items never showed `ambiguity_note` anywhere - added it to the item detail page (PROJECT.md 10.4).
+- `InboxRow`'s New/Stale label wasn't status-gated like `ItemDetail`'s, so it leaked into the Archive view on old/recently-archived items. Extracted a shared `isArchivedStatus()` helper into `itemLabels.js` so the two can't drift again.
+- `ArtImage`/`MediaHero` permanently pinned the placeholder fallback after one failed image load, even once a re-enrich supplied a working URL. Now resets on `src` change.
+
+### Test plan
+- [x] `npm test -- --run` - 102 passed (2 new tests)
+- [x] `npm run lint` - no new errors (2 new warnings match an existing set-state-in-effect pattern already used in 8 other files)
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01LVxkJFudeEFZUx2h2oBhAx
+
 ## 2026-08-22 - Fix stale/incomplete PROJECT.md (#23)
 
 ### Summary
