@@ -603,9 +603,12 @@ the way a person would add it themselves. Matches by searching Seerr
 (TMDB-backed) by title and requiring the result's release/air year to
 match `enrichment.structured.year` - no year, or no result in that year,
 means skip rather than request the wrong title. `game` and `music` items
-have nothing to request and are skipped without a call. Built from Seerr's
-public API docs, not verified against a live instance; check the container
-logs after the first real "Keep in vault" on a movie or show.
+have nothing to request and are skipped without a call. Verified
+2026-08-22 against a live Seerr instance - fixed one real bug along the
+way: the search query must be percent-encoded with `%20` for a space, not
+httpx's default `params={...}` behavior of `+` (the
+`application/x-www-form-urlencoded` convention), which a real Seerr
+instance's strict query validator rejects outright with a 400.
 
 ### 9.3 Recipe conversion
 

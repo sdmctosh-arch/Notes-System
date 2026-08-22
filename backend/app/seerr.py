@@ -27,6 +27,7 @@ it exists only for logging and tests.
 
 import logging
 import os
+import urllib.parse
 
 import httpx
 
@@ -89,9 +90,15 @@ def push_media(item: QueueItem) -> bool:
         return False
 
     headers = {"X-Api-Key": api_key}
+    # Not httpx's params={...} - it percent-encodes a space as "+" (the
+    # application/x-www-form-urlencoded convention), which Seerr's strict
+    # query validator rejects outright ("Parameter 'query' must be url
+    # encoded. Its value may not contain reserved characters.") since it
+    # only accepts %20. urllib.parse.quote defaults to %20 for a space.
+    encoded_query = urllib.parse.quote(item.title, safe="")
     try:
         resp = httpx.get(
-            f"{url}/api/v1/search", params={"query": item.title}, headers=headers, timeout=15
+            f"{url}/api/v1/search?query={encoded_query}", headers=headers, timeout=15
         )
         resp.raise_for_status()
         results = resp.json().get("results", [])
