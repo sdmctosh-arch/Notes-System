@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi } from 'vitest';
@@ -40,6 +40,32 @@ describe('InboxRow', () => {
     renderRow({ item: item({ category: 'lookup' }) });
     expect(screen.queryByText(/POSTER/)).not.toBeInTheDocument();
     expect(screen.queryByText(/DISH/)).not.toBeInTheDocument();
+  });
+
+  it('shows a real poster image instead of the placeholder when enrichment found one', () => {
+    renderRow({
+      item: item({
+        category: 'media',
+        title: 'Dune: Part Two',
+        enrichment: { structured: { image: 'https://image.tmdb.org/t/p/w500/abc.jpg' } },
+      }),
+    });
+    expect(screen.queryByText(/POSTER/)).not.toBeInTheDocument();
+    const img = screen.getByRole('img', { name: 'Dune: Part Two' });
+    expect(img).toHaveAttribute('src', 'https://image.tmdb.org/t/p/w500/abc.jpg');
+  });
+
+  it('falls back to the placeholder when the poster image fails to load', () => {
+    renderRow({
+      item: item({
+        category: 'media',
+        title: 'Dune: Part Two',
+        enrichment: { structured: { image: 'https://image.tmdb.org/t/p/w500/broken.jpg' } },
+      }),
+    });
+    const img = screen.getByRole('img', { name: 'Dune: Part Two' });
+    fireEvent.error(img);
+    expect(screen.getByText(/POSTER/)).toBeInTheDocument();
   });
 
   it('renders as a Link to the item by default, navigating on click', () => {

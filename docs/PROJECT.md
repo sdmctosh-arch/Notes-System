@@ -91,6 +91,7 @@ Do not add a port forward for the web interface.
 |---|---|
 | Gemini API, `generateContent` | Classification |
 | Gemini API, Interactions endpoint | Enrichment with tools |
+| TMDB API, `/search/movie`, `/search/tv` | Poster/backdrop image lookup for a `media` item. Optional, best-effort like Tandoor/Seerr below - see 9.2 |
 
 ---
 
@@ -557,6 +558,24 @@ Rules:
 - If the URL is a YouTube link, extract the video identifier. Put the identifier
   in `enrichment.embed`.
 
+Not in the original plan: a `media_info` item also gets a poster/backdrop
+image, looked up directly against the TMDB API (`Get-TmdbArt` in
+`Invoke-NoteProcessor-v2.ps1`) once enrichment has confirmed the title and
+year - not via Gemini's own search tools, since TMDB gives back an
+addressable image URL for a specific title/year in one call rather than
+leaving the model to guess at one. Matches the same way `push_media`
+(below) matches against Seerr's TMDB-backed search: by title, filtered to
+the result whose release/air year equals the year enrichment found. Uses
+the classifier's schema-enforced top-level `media_type` (not enrichment's
+free-text `structured.media_type`) to decide whether to call TMDB at all -
+`game` and `music` have no TMDB equivalent and are skipped without a call,
+same as `push_media`. Optional and best-effort like Tandoor/Seerr: with no
+`$env:TMDB_API_KEY` or `tmdb.key.xml` configured, or no year, or no matching
+result, `structured.image`/`structured.backdrop` are just left `null` and
+the item still queues normally - a missing poster is not a failure. Stored
+as plain URLs, hotlinked by the frontend (10.4) - nothing is downloaded or
+cached.
+
 Not in the original plan: "Keep in vault" on a `media` item whose top-level
 `media_type` is `tv` or `movie` (the classifier's schema-enforced field,
 not enrichment's free-text `structured.media_type`) also requests it in a
@@ -579,9 +598,23 @@ object in `enrichment.structured`.
 
 Required properties: `name`, `recipeIngredient`, `recipeInstructions`.
 Optional properties: `description`, `recipeYield`, `prepTime`, `cookTime`,
-`totalTime`, `recipeCategory`, `recipeCuisine`.
+`totalTime`, `recipeCategory`, `recipeCuisine`, `image`.
 
 Use ISO 8601 duration format for times. Example: `PT30M`.
+
+Not in the original plan: `image` is a URL to a photo of the finished dish,
+found by the same enrichment call using its existing `google_search`/
+`url_context` tools (unlike a `media` item's poster - see 9.2 - a recipe's
+image comes from the model's own search, not a separate lookup), per
+`enrich-prompt.md`'s "Recipe conversion" section. The source page's photo is
+preferred when the item has a `url`; otherwise, or if that page has none,
+the model searches for a similar recipe for the same dish and uses its
+photo instead - it does not have to be a photo of this exact source. Left
+`null` when no suitable photo turns up. Validated with the same rule as the
+top-level `url` field (9.4) before being stored; an invalid value is
+dropped to `null` rather than kept anywhere, since it is a nicety and not
+user data. Stored as a plain URL, hotlinked by the frontend (10.4) - nothing
+is downloaded or cached.
 
 This object is the input for the Tandoor import: "Keep in vault" on a recipe
 pushes it to a self-hosted Tandoor instance via `TANDOOR_URL`/
@@ -603,6 +636,7 @@ These guards do not depend on model behavior. Do not remove them.
 |---|---|
 | Automation allowlist | Remove `automation_candidate` unless the category is in `$AutomationAllowedCategories` **and** the value is in `$AllowedAutomations`. `$AllowedAutomations` is empty. Record the proposed value in `proposed_automation` |
 | URL validation | A URL is valid only if it is absolute, has scheme `http` or `https`, and contains no white space. Put an invalid value in `url_rejected` |
+| Recipe image validation | A recipe's `structured.image` (9.3) is checked with the same absolute-`http(s)`-no-whitespace rule as the URL guard above, but an invalid value is dropped to `null` - there is no `image_rejected` field, since this is a nicety, not user data worth keeping around to inspect |
 | Content hash | Compare the SHA-256 of the normalized body against the ledger. Do not process a repeat |
 | Truncation | If `truncated` is `true`, file the **original** body text. Do not file the model output |
 
@@ -686,17 +720,21 @@ Search, an item opened from one of those) keeps the single always-full-page
 detail view unchanged, on desktop and phone alike - only the Inbox has a
 two-pane mode.
 
-Not in the original plan: `media` and `recipe` items get a placeholder
-image slot instead of the usual category-color badge, since a poster or
-dish photo would be the more useful visual there once a real image source
-is wired up. Nothing fetches or stores an actual image yet - the slot is a
-labelled striped placeholder box (`frontend/src/components/ArtPlaceholder.jsx`)
-occupying real layout: a 2:3 "poster" thumbnail in the list for `media`, a
-1:1 "dish" thumbnail for `recipe`; in the item detail, `media` gets a 16:9
-placeholder backdrop above the header (with a dashed title-logo box and a
-type/year caption, in place of the category badge) and `recipe` gets a 4:3
-inset placeholder ahead of the ingredients. See `components/InboxRow.jsx`
-and `pages/ItemDetail.jsx`.
+Not in the original plan: `media` and `recipe` items get an art slot instead
+of the usual category-color badge - a real image
+(`frontend/src/components/ArtImage.jsx`) when enrichment found one (a TMDB
+poster/backdrop for `media`, 9.2; a dish photo for `recipe`, 9.3), falling
+back to the original labelled striped placeholder
+(`components/ArtPlaceholder.jsx`) when it didn't - no URL from enrichment,
+or a hotlinked one that failed to load (nothing is downloaded or cached;
+see 9.2/9.3). Layout is unchanged from the original placeholder-only
+design: a 2:3 "poster" thumbnail in the list for `media`, a 1:1 "dish"
+thumbnail for `recipe`; in the item detail, `media` gets a 16:9 backdrop
+above the header (a dashed title-logo box and a type/year caption overlay
+the placeholder only - a real backdrop image drops the title-logo box,
+since it was always a stand-in for art this system has no way to produce)
+and `recipe` gets a 4:3 inset image ahead of the ingredients. See
+`components/InboxRow.jsx` and `pages/ItemDetail.jsx`.
 
 **Item card.** The content changes with the category.
 
@@ -880,8 +918,10 @@ Also not in the original plan: the Inbox's important/star toggle was
 replaced outright by Pin (10.5) - there is no `important` field any more,
 only `pinned` - and the Inbox itself picked up a welcome header/greeting,
 Pinned/To review grouping, a hamburger drawer nav on phone screens, a
-desktop two-pane split view, and placeholder art slots for `media`/`recipe`
-items (all 10.4).
+desktop two-pane split view, and art slots for `media`/`recipe` items (all
+10.4) - originally placeholder-only, now backed by a real TMDB poster/
+backdrop for `media` and a search-found dish photo for `recipe` (9.2, 9.3),
+falling back to the placeholder when no image is available.
 
 For what shipped and when, read CHANGELOG.md, not this section - it updates
 itself on every merge and was staying accurate long after this table

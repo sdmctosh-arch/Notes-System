@@ -35,10 +35,13 @@ from category:
   actually says — do not guess at page content you have not read.
 - Use `google_search` when the item needs outside information and has no URL,
   or when a URL alone does not answer the question.
-- A recipe pasted in full as body text needs no tool at all: convert what is
-  already there. Only search if the recipe is incomplete or is a bare link.
-- Do not call a tool for a self-contained recipe or when the body already
-  contains everything needed.
+- A recipe pasted in full as body text needs no tool to convert the recipe
+  itself: convert what is already there. Only search for the recipe's
+  content if it is incomplete or is a bare link.
+- A recipe conversion still gets one `google_search` (or `url_context`, if
+  there is a `url`) purely to find `image` (see "Recipe conversion" below) —
+  even when the ingredients and steps are already complete in the body. Do
+  not use a tool for anything else on a self-contained recipe.
 
 ## Citations
 
@@ -69,6 +72,15 @@ Optional: `description`, `recipeYield`, `prepTime`, `cookTime`, `totalTime`,
 `recipeCategory`, `recipeCuisine`. Use ISO 8601 duration format for times,
 for example `PT30M`. Keep ingredient and instruction text close to the
 original wording — this is a format conversion, not a rewrite.
+
+`image` — a URL to a real photo of the finished dish, the same way you would
+illustrate a recipe you were asked to write out or improve. If the item has
+a `url`, check its page first with `url_context`. Otherwise, or if that page
+has no usable photo, use `google_search` to find one from a similar recipe
+for the same dish elsewhere online — it does not need to be a photo of this
+exact recipe, just a genuine, appetizing match for the dish. Only use a URL
+a tool actually returned; never invent one, and leave the field out entirely
+if nothing suitable turns up.
 
 ## Rules
 
