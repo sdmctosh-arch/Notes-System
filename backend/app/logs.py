@@ -21,14 +21,18 @@ def list_log_dates(log_dir: Path) -> list[str]:
 
 def read_log(log_dir: Path, date: str) -> str:
     # date drives the filename directly, so reject anything that isn't
-    # exactly YYYY-MM-DD before it ever touches the filesystem - stricter
-    # than the resolve()+containment check other modules use (capture.py,
-    # vault.py), and simpler, since a log date has no legitimate reason to
-    # contain a path separator at all.
+    # exactly YYYY-MM-DD before it ever touches the filesystem - a log date
+    # has no legitimate reason to contain a path separator at all. Also
+    # apply the resolve()+containment check capture.py/vault.py use: CodeQL
+    # doesn't recognize a regex match as clearing path-injection taint, so
+    # the belt-and-suspenders combination is what actually satisfies it.
     if not _DATE_RE.match(date):
         raise FileNotFoundError(date)
 
-    target = log_dir / f"processor-{date}.log"
+    target = (log_dir / f"processor-{date}.log").resolve()
+    allowed_root = log_dir.resolve()
+    if allowed_root not in target.parents and target != allowed_root:
+        raise FileNotFoundError(date)
     if not target.is_file():
         raise FileNotFoundError(date)
 

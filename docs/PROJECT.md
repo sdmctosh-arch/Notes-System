@@ -882,11 +882,12 @@ read-only bind mount, `/data/logs` -> `E:\notes-system\logs` (10.2, alongside
 `Archive\Captures`. `GET /api/logs` lists available dates (from filenames,
 newest first); `GET /api/logs/{date}` returns one day's content
 (`backend/app/logs.py`) - `date` is validated against `^\d{4}-\d{2}-\d{2}$`
-before it ever touches the filesystem, stricter than the resolve() +
-containment check `capture.py`/`vault.py` use, since a log date has no
-legitimate reason to contain a path separator at all. A date picker (newest
-selected by default) plus a Refresh button; no polling - the user reloads
-when they want the latest.
+before it ever touches the filesystem (a log date has no legitimate reason
+to contain a path separator at all), plus the same resolve()+containment
+check `capture.py`/`vault.py` use - CodeQL doesn't treat a regex match
+alone as clearing path-injection taint, so both together is what actually
+satisfies it. A date picker (newest selected by default) plus a Refresh
+button; no polling - the user reloads when they want the latest.
 
 ### 10.5 Actions
 
