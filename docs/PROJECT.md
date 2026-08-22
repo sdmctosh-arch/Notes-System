@@ -586,9 +586,14 @@ Use ISO 8601 duration format for times. Example: `PT30M`.
 This object is the input for the Tandoor import: "Keep in vault" on a recipe
 pushes it to a self-hosted Tandoor instance via `TANDOOR_URL`/
 `TANDOOR_API_TOKEN` (`backend/app/tandoor.py`), best-effort - a Tandoor
-outage never blocks filing the note. Built from Tandoor's public API docs,
-not verified against a live instance; check the container logs after the
-first real "Keep in vault" on a recipe.
+outage never blocks filing the note. Verified 2026-08-21 against a live
+Tandoor instance. The push is two calls, not one: POST to
+`/api/recipe-from-source/` only parses the recipe and returns a preview -
+it never saves anything on its own (confirmed by reading Tandoor's server
+source). The parsed `recipe` object from that response is then POSTed to
+`/api/recipe/` to actually create it; only that second call's result
+counts as success. Check the container logs after a "Keep in vault" on a
+recipe if something still doesn't show up.
 
 ### 9.4 Code guards
 

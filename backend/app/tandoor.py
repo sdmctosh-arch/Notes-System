@@ -1,14 +1,20 @@
 """Best-effort push of a kept recipe to a self-hosted Tandoor instance.
 
-Built from Tandoor's public API docs and community reports (recipe-from-
-source accepts a schema.org/Recipe JSON-LD blob via its "data" field, the
-same way pasting a URL for it to scrape does) - NOT verified against a
-live Tandoor instance, since this environment has no network access to
-one. The endpoint path, payload shape, and "Bearer <token>" auth header
-are the best-supported guess, not a confirmed contract. Watch the
-container logs after the first "Keep in vault" on a real recipe; if
-Tandoor rejects the request, the log line below will show its response
-body, which is the fastest way to see what needs adjusting.
+Verified 2026-08-21 against a live Tandoor instance (vabene1111/recipes),
+including reading its actual server source
+(cookbook/views/api.py::RecipeUrlImportView). Two calls are required, not
+one: POST to /api/recipe-from-source/ only parses the HTML we send and
+returns a preview - it never saves anything (there is no .save() or
+.objects.create() in the branch that handles a raw "data" payload, only
+in the separate Tandoor-to-Tandoor share-link branch). It returns 200
+with a fully-formed recipe body either way, so a naive caller that stops
+after that request sees what looks like success while nothing lands in
+Tandoor. Tandoor's own frontend takes that parsed "recipe" object and
+POSTs it to /api/recipe/ (the real RecipeViewSet) to actually create it -
+this module does the same. The "Bearer <token>" auth header was
+confirmed against the live instance too. The parsed object needs two
+fields filled in first that the parse step leaves null for the frontend
+to ask the user about - see _fill_required_fields.
 
 Every failure mode here is swallowed rather than raised - a Tandoor
 outage, a wrong token, or an API mismatch must never block filing the
@@ -45,6 +51,21 @@ def _config() -> tuple[str, str]:
     return url, token
 
 
+def _fill_required_fields(parsed_recipe: dict) -> None:
+    # The parse call leaves these null for the frontend to fill in after
+    # the user reviews the preview - /api/recipe/'s serializer rejects
+    # both as null (confirmed against a live instance: "This field may not
+    # be null" for each ingredient's order and for top-level servings).
+    # There's no user in this flow to ask, so pick values that create a
+    # valid recipe rather than losing the push over missing metadata.
+    if not parsed_recipe.get("servings"):
+        parsed_recipe["servings"] = 1
+    for step in parsed_recipe.get("steps", []):
+        for index, ingredient in enumerate(step.get("ingredients", [])):
+            if ingredient.get("order") is None:
+                ingredient["order"] = index
+
+
 def _schema_org_recipe(item: QueueItem) -> dict:
     structured = (item.enrichment.structured if item.enrichment else None) or {}
     recipe = {
@@ -76,16 +97,37 @@ def push_recipe(item: QueueItem) -> bool:
     # real recipe page would embed it, so the same code path used for a
     # normal URL import handles ours too.
     html = f'<html><head><script type="application/ld+json">{json.dumps(recipe)}</script></head><body></body></html>'
+    headers = {"Authorization": f"Bearer {token}"}
 
     try:
-        resp = httpx.post(
+        parse_resp = httpx.post(
             f"{url}/api/recipe-from-source/",
             json={"url": item.url or "", "data": html},
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
             timeout=15,
         )
-        resp.raise_for_status()
-        logger.info("Pushed recipe %s to Tandoor: %s", item.queue_id, resp.text[:200])
+        parse_resp.raise_for_status()
+        parsed_recipe = parse_resp.json().get("recipe")
+        if not parsed_recipe:
+            logger.warning(
+                "Tandoor recipe-from-source returned no recipe for %s: %s",
+                item.queue_id,
+                parse_resp.text[:200],
+            )
+            return False
+        _fill_required_fields(parsed_recipe)
+
+        # The parse call above never persists anything - see module
+        # docstring. This second call is the one that actually creates the
+        # recipe in Tandoor.
+        create_resp = httpx.post(
+            f"{url}/api/recipe/",
+            json=parsed_recipe,
+            headers=headers,
+            timeout=15,
+        )
+        create_resp.raise_for_status()
+        logger.info("Pushed recipe %s to Tandoor: %s", item.queue_id, create_resp.text[:200])
         return True
     except Exception:
         logger.exception("Failed to push recipe %s to Tandoor - continuing anyway", item.queue_id)
