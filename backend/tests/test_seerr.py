@@ -90,9 +90,8 @@ def test_push_media_requests_the_year_matched_result(monkeypatch):
     search_calls = {}
     request_calls = {}
 
-    def fake_get(url, params, headers, timeout):
+    def fake_get(url, headers, timeout):
         search_calls["url"] = url
-        search_calls["params"] = params
         search_calls["headers"] = headers
         return _search_response(
             [
@@ -116,14 +115,37 @@ def test_push_media_requests_the_year_matched_result(monkeypatch):
     monkeypatch.setattr(seerr.httpx, "post", fake_post)
 
     assert push_media(_media_item()) is True
-    assert search_calls["url"] == "http://seerr.local:5055/api/v1/search"
-    assert search_calls["params"] == {"query": "Severance"}
+    assert search_calls["url"] == "http://seerr.local:5055/api/v1/search?query=Severance"
     assert search_calls["headers"] == {"X-Api-Key": "secret-key"}
     # picks the tv result whose air year (2022) matches enrichment's year,
     # not the movie result or the tv result from the wrong year
     assert request_calls["url"] == "http://seerr.local:5055/api/v1/request"
     assert request_calls["json"] == {"mediaType": "tv", "mediaId": 333, "seasons": "all"}
     assert request_calls["headers"] == {"X-Api-Key": "secret-key"}
+
+
+def test_push_media_url_encodes_a_space_as_percent20_not_plus(monkeypatch):
+    # Regression test: httpx's params={...} dict encodes a space as "+"
+    # (application/x-www-form-urlencoded), which a real Seerr instance's
+    # strict query validator rejects with a 400 - "Parameter 'query' must
+    # be url encoded. Its value may not contain reserved characters."
+    # Confirmed 2026-08-22 against a live instance.
+    import app.seerr as seerr
+
+    monkeypatch.setenv("SEERR_URL", "http://seerr.local:5055")
+    monkeypatch.setenv("SEERR_API_KEY", "secret-key")
+
+    search_calls = {}
+
+    def fake_get(url, headers, timeout):
+        search_calls["url"] = url
+        return _search_response([])
+
+    monkeypatch.setattr(seerr.httpx, "get", fake_get)
+
+    push_media(_media_item(title="American Gangster"))
+    assert "American%20Gangster" in search_calls["url"]
+    assert "+" not in search_calls["url"]
 
 
 def test_push_media_requests_a_movie_without_seasons(monkeypatch):
