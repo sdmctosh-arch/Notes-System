@@ -4,6 +4,22 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-22 - Add a Settings page (#31)
+
+### Summary
+- Add a Settings page (`/settings`), linked above Log out in both the mobile drawer and the desktop rail.
+- Move the dark-mode toggle there from the drawer/rail (same `theme.js`/`notes-theme` storage, only relocated).
+- Add a Compact rows toggle (denser InboxRow: less padding, no preview line, smaller badge/art) used in Inbox, Lists, and Archive.
+- Make the New/Stale item-label day thresholds configurable (previously hardcoded to 1 and 7 days in `itemLabels.js`).
+- All settings are client-side only, in one `notes-settings` localStorage blob (`frontend/src/settings.js` + `settings-hook.js`) - no backend/API changes.
+- Update PROJECT.md 10.4 to document the new view and the moved/added settings.
+
+### Test plan
+- [x] `npm test` - 103/103 passing
+- [x] `npm run lint` - no new warnings
+- [x] `npm run build` - succeeds
+- [x] Manually verified in a running dev instance: Settings page renders on desktop (rail highlights it, Log out still works), Dark mode toggle switches the whole page theme live, Compact rows and New-for-days both persist across a reload
+
 ## 2026-08-22 - Remove a path-traversal test that passed for the wrong reason (#30)
 
 ### Summary
