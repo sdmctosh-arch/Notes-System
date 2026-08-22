@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import CategoryBadge from './CategoryBadge';
 import ItemLabel from './ItemLabel';
 import PinIcon from './PinIcon';
-import ArtPlaceholder from './ArtPlaceholder';
+import ArtImage from './ArtImage';
 import { categoryLabel } from '../categories';
 import { isNewItem, isStaleItem } from '../itemLabels';
 
@@ -32,6 +32,7 @@ export default function InboxRow({ item, onSelect, selected }) {
   const preview = item.enrichment?.summary || item.body || '';
   const label = isNewItem(item) ? 'new' : isStaleItem(item) ? 'stale' : null;
   const art = ROW_ART[item.category];
+  const artUrl = item.enrichment?.structured?.image || null;
   const Tag = onSelect ? 'button' : Link;
   const tagProps = onSelect
     ? { type: 'button', onClick: () => onSelect(item) }
@@ -48,7 +49,7 @@ export default function InboxRow({ item, onSelect, selected }) {
       }}
     >
       {art ? (
-        <ArtPlaceholder width={art.width} height={art.height} radius={art.radius} label={art.label} />
+        <ArtImage src={artUrl} alt={item.title || ''} width={art.width} height={art.height} radius={art.radius} label={art.label} />
       ) : (
         <CategoryBadge category={item.category} />
       )}

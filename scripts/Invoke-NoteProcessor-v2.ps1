@@ -42,6 +42,7 @@ param(
     [string]$PromptPath      = 'E:\notes-system\scripts\classify-prompt.md',
     [string]$EnrichPromptPath = 'E:\notes-system\scripts\enrich-prompt.md',
     [string]$KeyPath         = 'E:\notes-system\gemini.key.xml',
+    [string]$TmdbKeyPath     = 'E:\notes-system\tmdb.key.xml',
     [Parameter(Mandatory)][string]$Model,
     [string]$EnrichModel     = 'gemini-3.5-flash',
     [int]$BodyLimit      = 800,
@@ -293,6 +294,7 @@ $EnrichmentResponseSchema = @{
                 totalTime          = @{ type = 'string' }
                 recipeCategory     = @{ type = 'string' }
                 recipeCuisine      = @{ type = 'string' }
+                image              = @{ type = 'string' }
             }
             # Without this, the model has been observed including the
             # object but skipping the two fields that are the entire point
@@ -394,6 +396,58 @@ function Get-EmbedFromUrl {
     return @{ type = 'youtube'; video_id = $m.Groups[1].Value }
 }
 
+function Get-TmdbArt {
+    <# Best-effort poster/backdrop lookup for a media_info item, direct
+       against TMDB - not via Gemini's own search tool, unlike a recipe's
+       image (see enrich-prompt.md), because TMDB gives a real, addressable
+       image URL for a specific title/year in one call instead of leaving
+       the model to guess at one. Mirrors the search-then-filter-by-year
+       matching backend/app/seerr.py already does against Seerr's TMDB-
+       backed search, reimplemented here since this call happens processor-
+       side, at enrichment time, not from the interface. Never throws - a
+       missing key, an unmatched title, or an API error all just mean no
+       image, exactly like a Seerr/Tandoor push failing does not block
+       filing the note. #>
+    param(
+        [AllowNull()][string]$Title,
+        [AllowNull()][string]$MediaType,
+        [AllowNull()][string]$Year
+    )
+
+    if (-not $script:TmdbApiKey) { return $null }
+    if ([string]::IsNullOrWhiteSpace($Title)) { return $null }
+    # Matches item.media_type, the classifier's schema-enforced field (9.2) -
+    # game/music have no TMDB equivalent, same skip Seerr's push makes.
+    if ($MediaType -notin @('movie','tv')) { return $null }
+    if ([string]::IsNullOrWhiteSpace($Year) -or $Year.Length -lt 4) { return $null }
+
+    $dateField = if ($MediaType -eq 'movie') { 'release_date' } else { 'first_air_date' }
+    $endpoint  = "https://api.themoviedb.org/3/search/$MediaType"
+
+    try {
+        $resp = Invoke-RestMethod -Uri $endpoint -Method Get -Body @{
+            api_key = $script:TmdbApiKey
+            query   = $Title
+        }
+    }
+    catch {
+        Write-Log "  TMDB search failed for '$Title' - $($_.Exception.Message)" 'WARN'
+        return $null
+    }
+
+    $yearPrefix = $Year.Substring(0, 4)
+    $match = $resp.results |
+        Where-Object { $_.$dateField -and $_.$dateField.Length -ge 4 -and $_.$dateField.Substring(0, 4) -eq $yearPrefix } |
+        Select-Object -First 1
+    if (-not $match) { return $null }
+
+    $base = 'https://image.tmdb.org/t/p'
+    return @{
+        image    = if ($match.poster_path)   { "$base/w500$($match.poster_path)" }   else { $null }
+        backdrop = if ($match.backdrop_path) { "$base/w1280$($match.backdrop_path)" } else { $null }
+    }
+}
+
 function Invoke-Enrichment {
     param(
         [Parameter(Mandatory)]$Item,
@@ -487,9 +541,22 @@ function Invoke-Enrichment {
     $structured = $null
     if ($parsed.kind -eq 'recipe' -and $parsed.PSObject.Properties.Name -contains 'recipe') {
         $structured = $parsed.recipe
+        # Same URL-validation rule as the top-level url field (9.4) - the
+        # model finding an image is a nicety, not user data, so an invalid
+        # value is just dropped to null rather than kept in a *_rejected
+        # field the way url_rejected keeps the top-level one.
+        $rawImage = Get-ItemField $structured 'image'
+        $structured | Add-Member -NotePropertyName 'image' -NotePropertyValue `
+            $(if ($rawImage -and (Test-CleanUrl $rawImage)) { $rawImage } else { $null }) -Force
     }
     elseif ($parsed.kind -eq 'media_info' -and $parsed.PSObject.Properties.Name -contains 'media') {
         $structured = $parsed.media
+        # Not from Gemini's own search (unlike a recipe's image) - a direct,
+        # best-effort TMDB lookup using the title/year enrichment already
+        # confirmed and the classifier's schema-enforced media_type (9.2).
+        $art = Get-TmdbArt -Title $structured.title -MediaType (Get-ItemField $Item 'media_type') -Year $structured.year
+        $structured | Add-Member -NotePropertyName 'image'    -NotePropertyValue $(if ($art) { $art.image }    else { $null }) -Force
+        $structured | Add-Member -NotePropertyName 'backdrop' -NotePropertyValue $(if ($art) { $art.backdrop } else { $null }) -Force
     }
 
     return [ordered]@{
@@ -687,6 +754,20 @@ elseif (Test-Path -LiteralPath $KeyPath) {
 }
 else {
     throw "No API key available. Set `$env:GEMINI_API_KEY or provide -KeyPath $KeyPath."
+}
+
+# Optional, unlike the Gemini key above - TMDB only powers the media poster/
+# backdrop lookup (9.2), and a missing key just means media items keep the
+# frontend's placeholder art, the same best-effort posture as Seerr/Tandoor.
+if ($env:TMDB_API_KEY) {
+    $script:TmdbApiKey = $env:TMDB_API_KEY
+}
+elseif (Test-Path -LiteralPath $TmdbKeyPath) {
+    $script:TmdbApiKey = [Net.NetworkCredential]::new('', (Import-Clixml -LiteralPath $TmdbKeyPath)).Password
+}
+else {
+    $script:TmdbApiKey = $null
+    Write-Log "TMDB not configured (`$env:TMDB_API_KEY or $TmdbKeyPath) - media items will not get a poster/backdrop image." 'WARN'
 }
 
 if (Test-Path -LiteralPath $LockPath) {

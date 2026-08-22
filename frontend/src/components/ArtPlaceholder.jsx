@@ -1,7 +1,9 @@
-// Stand-in for real per-category art (TMDB posters/backdrops for media,
-// a dish photo for recipe) - nothing fetches or stores actual images yet,
-// so this is a labelled striped placeholder occupying the real layout slot,
-// per PROJECT.md 10.6. Swap in a real <img> here once that lands.
+// Fallback for when there's no real per-category art to show yet - no image
+// URL from enrichment (a media item with no TMDB match, a recipe with none
+// found via search) or a hotlinked one that failed to load. A labelled
+// striped placeholder occupying the real layout slot, per PROJECT.md 10.4.
+// See ArtImage, which renders this or a real <img> depending on what's
+// available.
 export const STRIPE = 'repeating-linear-gradient(135deg, var(--color-stripe-a) 0 6px, var(--color-stripe-b) 6px 12px)';
 
 export default function ArtPlaceholder({ width, height, aspectRatio, radius = 8, label, fontSize = 8, className = '', style }) {

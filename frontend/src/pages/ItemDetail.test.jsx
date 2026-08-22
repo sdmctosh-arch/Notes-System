@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { describe, it, expect, vi } from 'vitest';
@@ -363,6 +363,84 @@ describe('ItemDetail', () => {
     await screen.findByText('Arroz con Gandules');
     expect(screen.getByText('DISH · 4:3')).toBeInTheDocument();
     expect(screen.queryByText('BACKDROP · 16:9')).not.toBeInTheDocument();
+  });
+
+  it('shows a real backdrop image instead of the hero placeholder when TMDB found one', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        category: 'media',
+        title: 'Dune: Part Two',
+        enrichment: {
+          kind: 'media_info',
+          summary: 'A sci-fi film.',
+          detail: '',
+          citations: [],
+          structured: {
+            year: 2024,
+            media_type: 'movie',
+            image: 'https://image.tmdb.org/t/p/w500/poster.jpg',
+            backdrop: 'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+          },
+        },
+      }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Dune: Part Two');
+    expect(screen.queryByText('BACKDROP · 16:9')).not.toBeInTheDocument();
+    expect(screen.queryByText('TITLE LOGO')).not.toBeInTheDocument();
+    expect(screen.getByText('movie · 2024')).toBeInTheDocument();
+    expect(screen.getByAltText('')).toHaveAttribute('src', 'https://image.tmdb.org/t/p/w1280/backdrop.jpg');
+  });
+
+  it('falls back to the hero placeholder when the backdrop image fails to load', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        category: 'media',
+        title: 'Dune: Part Two',
+        enrichment: {
+          kind: 'media_info',
+          summary: 'A sci-fi film.',
+          detail: '',
+          citations: [],
+          structured: { year: 2024, media_type: 'movie', backdrop: 'https://image.tmdb.org/t/p/w1280/broken.jpg' },
+        },
+      }),
+    );
+
+    renderDetail();
+
+    const img = await screen.findByAltText('');
+    fireEvent.error(img);
+    expect(screen.getByText('BACKDROP · 16:9')).toBeInTheDocument();
+    expect(screen.getByText('TITLE LOGO')).toBeInTheDocument();
+  });
+
+  it('shows a real dish image instead of the figure placeholder when enrichment found one', async () => {
+    api.getItem.mockResolvedValueOnce(
+      baseItem({
+        category: 'recipe',
+        title: 'Arroz con Gandules',
+        enrichment: {
+          kind: 'recipe',
+          summary: '',
+          detail: '',
+          citations: [],
+          structured: {
+            recipeIngredient: ['2 cups rice'],
+            recipeInstructions: ['Saute sofrito'],
+            image: 'https://example.com/gandules.jpg',
+          },
+        },
+      }),
+    );
+
+    renderDetail();
+
+    await screen.findByText('Arroz con Gandules');
+    expect(screen.queryByText('DISH · 4:3')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Arroz con Gandules' })).toHaveAttribute('src', 'https://example.com/gandules.jpg');
   });
 
   it('shows the ordinary category badge for a category with no art (e.g. lookup)', async () => {

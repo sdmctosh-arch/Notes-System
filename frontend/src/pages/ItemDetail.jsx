@@ -12,7 +12,8 @@ import ReenrichButton from '../components/ReenrichButton';
 import ShareButton from '../components/ShareButton';
 import PinIcon from '../components/PinIcon';
 import UnarchiveBar from '../components/UnarchiveBar';
-import ArtPlaceholder, { STRIPE } from '../components/ArtPlaceholder';
+import ArtImage from '../components/ArtImage';
+import { STRIPE } from '../components/ArtPlaceholder';
 import Prose from '../components/Prose';
 import { categoryColors, categoryLabel, isEnrichableCategory } from '../categories';
 import { isNewItem, isStaleItem } from '../itemLabels';
@@ -52,32 +53,50 @@ function OriginalLink({ url }) {
   );
 }
 
-// Full-bleed backdrop above the header, in place of a TMDB backdrop image -
-// see ArtPlaceholder. Only media gets a hero; recipe's art sits inline in
-// the body instead (RecipeFigure below), matching the design's split
-// between "backdrop behind the title" and "photo beside the ingredients".
+// Full-bleed backdrop above the header - a real TMDB backdrop image when
+// Get-TmdbArt (Invoke-NoteProcessor-v2.ps1) found one, else ArtPlaceholder's
+// striped fallback. Only media gets a hero; recipe's art sits inline in the
+// body instead (RecipeFigure below), matching the design's split between
+// "backdrop behind the title" and "photo beside the ingredients". The
+// dashed "TITLE LOGO" box is a placeholder-only stand-in for art this
+// system has no way to produce (a title-logo treatment), so it only shows
+// up alongside the striped placeholder, never over a real photo.
 function MediaHero({ item }) {
   const m = item.enrichment?.structured || {};
   const caption = [item.enrichment?.kind === 'media_info' ? m.media_type : null, m.year].filter(Boolean).join(' · ');
+  const [imgFailed, setImgFailed] = useState(false);
+  const hasBackdrop = Boolean(m.backdrop) && !imgFailed;
+
   return (
-    <div className="relative w-full h-[200px] flex items-center justify-center" style={{ background: STRIPE }}>
-      <span
-        className="uppercase"
-        style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 500, fontSize: 9.5, letterSpacing: '0.14em', color: 'var(--color-stripe-text)' }}
-      >
-        BACKDROP · 16:9
-      </span>
+    <div className="relative w-full h-[200px] flex items-center justify-center overflow-hidden" style={hasBackdrop ? undefined : { background: STRIPE }}>
+      {hasBackdrop ? (
+        <img
+          src={m.backdrop}
+          alt=""
+          onError={() => setImgFailed(true)}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <span
+          className="uppercase"
+          style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 500, fontSize: 9.5, letterSpacing: '0.14em', color: 'var(--color-stripe-text)' }}
+        >
+          BACKDROP · 16:9
+        </span>
+      )}
       <div
         className="absolute inset-x-0 bottom-0 h-2/3"
         style={{ background: 'linear-gradient(to top, oklch(0.2 0.02 60 / 0.78), oklch(0.2 0.02 60 / 0))' }}
       />
       <div className="absolute left-4 right-4 bottom-3 flex flex-col gap-1.5">
-        <div
-          className="h-9 w-48 flex items-center justify-center px-3 rounded"
-          style={{ border: '1px dashed oklch(0.99 0.005 80 / 0.55)', color: 'oklch(0.99 0.005 80 / 0.85)', fontSize: 9 }}
-        >
-          TITLE LOGO
-        </div>
+        {!hasBackdrop && (
+          <div
+            className="h-9 w-48 flex items-center justify-center px-3 rounded"
+            style={{ border: '1px dashed oklch(0.99 0.005 80 / 0.55)', color: 'oklch(0.99 0.005 80 / 0.85)', fontSize: 9 }}
+          >
+            TITLE LOGO
+          </div>
+        )}
         {caption && (
           <div className="uppercase" style={{ color: 'oklch(0.99 0.005 80 / 0.85)', fontSize: 10, letterSpacing: '0.1em' }}>
             {caption}
@@ -88,10 +107,11 @@ function MediaHero({ item }) {
   );
 }
 
-function RecipeFigure() {
+function RecipeFigure({ item }) {
+  const image = item.enrichment?.structured?.image || null;
   return (
     <div className="mb-5">
-      <ArtPlaceholder aspectRatio="4 / 3" radius={12} label="DISH · 4:3" className="w-full max-w-[340px]" style={{ border: '1px solid var(--color-border)' }} />
+      <ArtImage src={image} alt={item.title || ''} aspectRatio="4 / 3" radius={12} label="DISH · 4:3" className="w-full max-w-[340px]" style={{ border: '1px solid var(--color-border)' }} />
     </div>
   );
 }
@@ -117,7 +137,7 @@ function Body({ item }) {
     const r = e.structured || {};
     return (
       <>
-        <RecipeFigure />
+        <RecipeFigure item={item} />
         {r.recipeIngredient && (
           <>
             <div className="font-serif font-semibold text-[15px] mb-2.5" style={{ color: 'var(--color-text-primary)' }}>
