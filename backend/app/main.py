@@ -8,13 +8,15 @@ from pydantic import BaseModel
 
 from app import auth, storage
 from app.capture import read_capture
-from app.config import ARCHIVE_DIR, VAULT_DIR
+from app.config import ARCHIVE_DIR, LOG_DIR, VAULT_DIR
 from app.gemini_chat import ChatError, send_message
+from app.logs import list_log_dates, read_log
 from app.models import (
     CaptureContent,
     ChatMessage,
     ChatRequest,
     ItemUpdate,
+    LogContent,
     MoveRequest,
     NewItemRequest,
     PinRequest,
@@ -122,6 +124,22 @@ def get_capture(capture_id: str, _=Depends(auth.require_auth)):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"No capture {capture_id}")
     return CaptureContent(capture_id=capture_id, content=content)
+
+
+@app.get("/api/logs", response_model=list[str])
+def list_logs(_=Depends(auth.require_auth)):
+    # Newest first, so the frontend's date picker can default to the most
+    # recent run without an extra sort.
+    return list_log_dates(LOG_DIR)
+
+
+@app.get("/api/logs/{date}", response_model=LogContent)
+def get_log(date: str, _=Depends(auth.require_auth)):
+    try:
+        content = read_log(LOG_DIR, date)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No log for {date}")
+    return LogContent(date=date, content=content)
 
 
 @app.get("/api/items/{queue_id}", response_model=QueueItem)

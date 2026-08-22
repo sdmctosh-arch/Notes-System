@@ -133,6 +133,11 @@ class CaptureContent(BaseModel):
     content: str
 
 
+class LogContent(BaseModel):
+    date: str
+    content: str
+
+
 class SearchResult(BaseModel):
     kind: str  # "item" | "vault_note"
     title: str

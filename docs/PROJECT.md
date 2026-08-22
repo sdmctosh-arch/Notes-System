@@ -704,6 +704,7 @@ Bind mounts:
 | `/data/queue` | `E:\notes-system\queue` | Read and write |
 | `/data/vault` | `E:\notes` | Read and write |
 | `/data/archive` | `E:\notes\Archive\Captures` | Read only |
+| `/data/logs` | `E:\notes-system\logs` | Read only |
 
 ### 10.3 Authentication
 
@@ -770,11 +771,13 @@ opening it doesn't also scroll the detail pane out of view. The detail
 pane's body resets to the top whenever a different item is selected.
 
 The desktop rail extends to a vault note (`pages/VaultNote.jsx`, reached
-from Vault) and an original capture (`pages/CaptureView.jsx`, reached from
-"View original capture" on an item card) too, the same `DesktopPageShell`
-treatment as Search/Lists/Vault/Archive - these are content viewers reached
-from a rail-bearing list, not item drill-downs like `ItemDetail`, so they
-follow that pattern rather than the full-page exception above.
+from Vault), an original capture (`pages/CaptureView.jsx`, reached from
+"View original capture" on an item card), and the processor log
+(`pages/ProcessorLog.jsx`, reached from Settings) too, the same
+`DesktopPageShell` treatment as Search/Lists/Vault/Archive/Settings - these
+are content viewers reached from a rail-bearing list or page, not item
+drill-downs like `ItemDetail`, so they follow that pattern rather than the
+full-page exception above.
 
 Not in the original plan: `media` and `recipe` items get an art slot instead
 of the usual category-color badge - a real image
@@ -855,16 +858,35 @@ category the processor actually enriches (everything except `todo` and
 the same as if it had come in from the phone.
 
 **Settings.** Not in the original plan. Reached from the mobile drawer or the
-desktop rail (above Log out in both). No API calls - every field is a
-client-side preference, stored in one `notes-settings` JSON blob in
-`localStorage` (`frontend/src/settings.js`), per browser rather than per
-account (10.3 has no accounts). Dark mode moved here from the drawer/rail
-(still the same `notes-theme` `localStorage` key and `theme.js` module -
-only where the switch is rendered changed). Also here: a "Compact rows"
-toggle (smaller cards, no preview line, in `InboxRow` - used by Inbox,
-Lists, and Archive) and the New/Stale label day thresholds described above.
+desktop rail (above Log out in both). No API calls except for the link
+below - every preference field is client-side, stored in one
+`notes-settings` JSON blob in `localStorage` (`frontend/src/settings.js`),
+per browser rather than per account (10.3 has no accounts). Dark mode moved
+here from the drawer/rail (still the same `notes-theme` `localStorage` key
+and `theme.js` module - only where the switch is rendered changed). Also
+here: a "Compact rows" toggle (smaller cards, no preview line, in
+`InboxRow` - used by Inbox, Lists, and Archive), the New/Stale label day
+thresholds described above, and a "Processor log" link (below).
 Deliberately excludes anything account/profile-shaped (name, avatar,
 notifications) - see the no-accounts note in 10.3.
+
+**Processor log.** Not in the original plan. Read-only view of
+`Invoke-NoteProcessor-v2.ps1`'s own daily log files (`processor-<date>.log`,
+one per day it ran, written by `Write-Log` in the script itself) - lets the
+user see classification/enrichment activity and errors without RDP-ing into
+the M720s. Reached from Settings, not a top-level rail/drawer icon, since
+it's a diagnostic view rather than something used day to day. A new
+read-only bind mount, `/data/logs` -> `E:\notes-system\logs` (10.2, alongside
+`LOG_DIR`), makes the directory visible to the container for the first time
+- every other view before this only ever saw `queue`, `vault`, or
+`Archive\Captures`. `GET /api/logs` lists available dates (from filenames,
+newest first); `GET /api/logs/{date}` returns one day's content
+(`backend/app/logs.py`) - `date` is validated against `^\d{4}-\d{2}-\d{2}$`
+before it ever touches the filesystem, stricter than the resolve() +
+containment check `capture.py`/`vault.py` use, since a log date has no
+legitimate reason to contain a path separator at all. A date picker (newest
+selected by default) plus a Refresh button; no polling - the user reloads
+when they want the latest.
 
 ### 10.5 Actions
 

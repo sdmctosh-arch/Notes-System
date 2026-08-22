@@ -53,6 +53,28 @@ function ToggleRow({ label, hint, checked, onChange }) {
   );
 }
 
+function LinkRow({ to, label, hint }) {
+  return (
+    <Link to={to} className="block">
+      <Row>
+        <div className="min-w-0 grow">
+          <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            {label}
+          </div>
+          {hint && (
+            <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+              {hint}
+            </div>
+          )}
+        </div>
+        <span className="shrink-0" style={{ color: 'var(--color-text-muted)' }}>
+          &rarr;
+        </span>
+      </Row>
+    </Link>
+  );
+}
+
 function DaysRow({ label, hint, value, onChange }) {
   return (
     <Row>
@@ -130,6 +152,11 @@ export default function Settings() {
           value={staleDays}
           onChange={(v) => setSetting('staleDays', v)}
         />
+      </div>
+
+      <SectionLabel>Diagnostics</SectionLabel>
+      <div className="flex flex-col gap-2.5 pb-6">
+        <LinkRow to="/log" label="Processor log" hint="Classification and enrichment activity from the note processor" />
       </div>
     </>
   );
