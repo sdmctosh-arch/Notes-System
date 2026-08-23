@@ -6,8 +6,11 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from app.config import QUEUE_ARCHIVED_DIR, QUEUE_PENDING_DIR
+from app.config import QUEUE_ARCHIVED_DIR, QUEUE_PENDING_DIR, VAULT_DIR
 from app.models import TASK_CATEGORIES, ChatMessage, QueueItem
+from app.seerr import push_media
+from app.tandoor import push_recipe
+from app.vault import write_vault_note
 
 
 class ItemNotFoundError(Exception):
@@ -225,6 +228,23 @@ def unarchive_item(queue_id: str) -> QueueItem:
     _write_item_atomic(target, updated)
     path.unlink()
     return updated
+
+
+def keep_item(queue_id: str) -> QueueItem:
+    # "Keep in vault" is vault-write, then external pushes, then archive as
+    # filed - always in that order, always best-effort on the pushes (see
+    # tandoor.push_recipe/seerr.push_media's own module docstrings for why
+    # neither ever raises). That rule used to live in main.py's route
+    # handler; it moves here, next to the other status-transition rules,
+    # so the workflow itself is covered by a test on this function without
+    # spinning up FastAPI (architecture review 2026-08-23, candidate c2).
+    item = get_item(queue_id)
+    write_vault_note(VAULT_DIR, item)
+    if item.category == "recipe":
+        push_recipe(item)
+    elif item.category == "media":
+        push_media(item)
+    return move_to_archived(queue_id, "filed")
 
 
 def move_to_archived(queue_id: str, new_status: str) -> QueueItem:

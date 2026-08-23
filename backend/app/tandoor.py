@@ -24,10 +24,10 @@ return value; it exists only for logging and tests.
 
 import json
 import logging
-import os
 
 import httpx
 
+from app.external_push import best_effort, read_config
 from app.models import QueueItem
 
 logger = logging.getLogger(__name__)
@@ -43,12 +43,6 @@ _RECIPE_FIELDS = (
     "recipeCategory",
     "recipeCuisine",
 )
-
-
-def _config() -> tuple[str, str]:
-    url = os.environ.get("TANDOOR_URL", "").rstrip("/")
-    token = os.environ.get("TANDOOR_API_TOKEN", "")
-    return url, token
 
 
 def _fill_required_fields(parsed_recipe: dict) -> None:
@@ -83,13 +77,10 @@ def _schema_org_recipe(item: QueueItem) -> dict:
 
 
 def push_recipe(item: QueueItem) -> bool:
-    url, token = _config()
-    if not url or not token:
-        logger.info(
-            "Tandoor not configured (TANDOOR_URL/TANDOOR_API_TOKEN unset) - skipping push for %s",
-            item.queue_id,
-        )
+    config = read_config("TANDOOR_URL", "TANDOOR_API_TOKEN", "Tandoor", item.queue_id, logger)
+    if config is None:
         return False
+    url, token = config
 
     recipe = _schema_org_recipe(item)
     # recipe-from-source expects HTML it can scrape a JSON-LD block out of -
@@ -99,7 +90,7 @@ def push_recipe(item: QueueItem) -> bool:
     html = f'<html><head><script type="application/ld+json">{json.dumps(recipe)}</script></head><body></body></html>'
     headers = {"Authorization": f"Bearer {token}"}
 
-    try:
+    with best_effort(logger, "Failed to push recipe %s to Tandoor - continuing anyway", item.queue_id):
         parse_resp = httpx.post(
             f"{url}/api/recipe-from-source/",
             json={"url": item.url or "", "data": html},
@@ -129,6 +120,4 @@ def push_recipe(item: QueueItem) -> bool:
         create_resp.raise_for_status()
         logger.info("Pushed recipe %s to Tandoor: %s", item.queue_id, create_resp.text[:200])
         return True
-    except Exception:
-        logger.exception("Failed to push recipe %s to Tandoor - continuing anyway", item.queue_id)
-        return False
+    return False

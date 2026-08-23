@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.models import QueueItem
+from app.paths import resolve_within
 
 # Same mapping the deleted PowerShell Write-VaultNote used. Categories with
 # no defined vault folder (lookup, todo, media, reference, grocery) fall
@@ -149,14 +150,12 @@ def read_vault_note(vault_root: Path, folder: str, filename: str) -> str:
     if folder not in VAULT_FOLDERS:
         raise FileNotFoundError(folder)
 
-    # filename comes straight from the URL path - resolve and check it
-    # actually lands inside vault_root/folder before reading, so a
-    # "../../something-else" can't escape the vault folders above.
-    target = (vault_root / folder / filename).resolve()
-    allowed_root = (vault_root / folder).resolve()
-    if allowed_root not in target.parents and target != allowed_root:
-        raise FileNotFoundError(filename)
-    if target.suffix != ".md" or not target.is_file():
+    # filename comes straight from the URL path - resolve_within checks it
+    # actually lands inside vault_root/folder (not just vault_root - a
+    # "../OtherFolder/x.md" must not resolve into a sibling category folder
+    # either) before reading, so a "../../something-else" can't escape.
+    target = resolve_within(vault_root / folder, filename)
+    if target is None or target.suffix != ".md" or not target.is_file():
         raise FileNotFoundError(filename)
 
     return target.read_text(encoding="utf-8")

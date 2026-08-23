@@ -883,11 +883,12 @@ read-only bind mount, `/data/logs` -> `E:\notes-system\logs` (10.2, alongside
 newest first); `GET /api/logs/{date}` returns one day's content
 (`backend/app/logs.py`) - `date` is validated against `^\d{4}-\d{2}-\d{2}$`
 before it ever touches the filesystem (a log date has no legitimate reason
-to contain a path separator at all), plus the same resolve()+containment
-check `capture.py`/`vault.py` use - CodeQL doesn't treat a regex match
-alone as clearing path-injection taint, so both together is what actually
-satisfies it. A date picker (newest selected by default) plus a Refresh
-button; no polling - the user reloads when they want the latest.
+to contain a path separator at all), plus the same `resolve_within()`
+containment check `capture.py`/`vault.py`/`static_files.py` share
+(`app/paths.py`) - CodeQL doesn't treat a regex match alone as clearing
+path-injection taint, so both together is what actually satisfies it. A
+date picker (newest selected by default) plus a Refresh button; no
+polling - the user reloads when they want the latest.
 
 ### 10.5 Actions
 
@@ -983,10 +984,10 @@ favicon (browsers just fail to render it, silently), fatal for a service
 worker or manifest, which the browser refuses to register or parse when
 the response is HTML instead of JS/JSON. Fixed by checking, per request,
 whether the path resolves to a real file inside the static directory
-(`app/static_files.py`'s `resolve_static_file` - the same
-resolve()+containment guard `capture.py`/`vault.py`/`logs.py` use) and
-serving it as itself when so, falling back to `index.html` only for
-genuine SPA routes.
+(`app/static_files.py`'s `resolve_static_file` - built on the same
+`resolve_within()` guard `capture.py`/`vault.py`/`logs.py` share, in
+`app/paths.py`) and serving it as itself when so, falling back to
+`index.html` only for genuine SPA routes.
 
 ---
 

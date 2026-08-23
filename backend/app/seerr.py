@@ -26,20 +26,14 @@ it exists only for logging and tests.
 """
 
 import logging
-import os
 import urllib.parse
 
 import httpx
 
+from app.external_push import best_effort, read_config
 from app.models import QueueItem
 
 logger = logging.getLogger(__name__)
-
-
-def _config() -> tuple[str, str]:
-    url = os.environ.get("SEERR_URL", "").rstrip("/")
-    api_key = os.environ.get("SEERR_API_KEY", "")
-    return url, api_key
 
 
 def _year_of(date_str: str | None) -> str | None:
@@ -59,13 +53,10 @@ def _find_match(results: list[dict], media_type: str, year: str) -> dict | None:
 
 
 def push_media(item: QueueItem) -> bool:
-    url, api_key = _config()
-    if not url or not api_key:
-        logger.info(
-            "Seerr not configured (SEERR_URL/SEERR_API_KEY unset) - skipping push for %s",
-            item.queue_id,
-        )
+    config = read_config("SEERR_URL", "SEERR_API_KEY", "Seerr", item.queue_id, logger)
+    if config is None:
         return False
+    url, api_key = config
 
     media_type = item.media_type
     if media_type not in ("movie", "tv"):
@@ -96,14 +87,14 @@ def push_media(item: QueueItem) -> bool:
     # encoded. Its value may not contain reserved characters.") since it
     # only accepts %20. urllib.parse.quote defaults to %20 for a space.
     encoded_query = urllib.parse.quote(item.title, safe="")
-    try:
+    results = None
+    with best_effort(logger, "Seerr search failed for %s - skipping push", item.queue_id):
         resp = httpx.get(
             f"{url}/api/v1/search?query={encoded_query}", headers=headers, timeout=15
         )
         resp.raise_for_status()
         results = resp.json().get("results", [])
-    except Exception:
-        logger.exception("Seerr search failed for %s - skipping push", item.queue_id)
+    if results is None:
         return False
 
     match = _find_match(results, media_type, year)
@@ -120,11 +111,11 @@ def push_media(item: QueueItem) -> bool:
     if media_type == "tv":
         payload["seasons"] = "all"
 
-    try:
+    with best_effort(
+        logger, "Failed to request %r in Seerr for %s - continuing anyway", item.title, item.queue_id
+    ):
         resp = httpx.post(f"{url}/api/v1/request", json=payload, headers=headers, timeout=15)
         resp.raise_for_status()
         logger.info("Requested %r (%s) in Seerr for %s", item.title, media_type, item.queue_id)
         return True
-    except Exception:
-        logger.exception("Failed to request %r in Seerr for %s - continuing anyway", item.title, item.queue_id)
-        return False
+    return False

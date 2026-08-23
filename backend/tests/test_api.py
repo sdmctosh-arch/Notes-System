@@ -381,12 +381,15 @@ def test_log_endpoint_requires_auth(sandbox):
 
 
 def test_keep_recipe_succeeds_even_when_tandoor_push_fails(sandbox, monkeypatch):
-    from app import main
+    # push_recipe is called from storage.keep_item now, not main.move_item -
+    # see storage.py's keep_item (architecture review 2026-08-23, candidate
+    # c2) - so it's storage.push_recipe that needs patching here.
+    from app import storage
 
     def failing_push(item):
         return False
 
-    monkeypatch.setattr(main, "push_recipe", failing_push)
+    monkeypatch.setattr(storage, "push_recipe", failing_push)
     sandbox.seed(queue_id="a", category="recipe", title="A recipe")
 
     resp = sandbox.client.post("/api/items/a/move", json={"action": "keep"})
@@ -395,7 +398,7 @@ def test_keep_recipe_succeeds_even_when_tandoor_push_fails(sandbox, monkeypatch)
 
 
 def test_keep_non_recipe_never_calls_tandoor(sandbox, monkeypatch):
-    from app import main
+    from app import storage
 
     called = {"n": 0}
 
@@ -403,7 +406,7 @@ def test_keep_non_recipe_never_calls_tandoor(sandbox, monkeypatch):
         called["n"] += 1
         return True
 
-    monkeypatch.setattr(main, "push_recipe", counting_push)
+    monkeypatch.setattr(storage, "push_recipe", counting_push)
     sandbox.seed(queue_id="a", category="idea", title="An idea")
 
     sandbox.client.post("/api/items/a/move", json={"action": "keep"})
@@ -411,9 +414,9 @@ def test_keep_non_recipe_never_calls_tandoor(sandbox, monkeypatch):
 
 
 def test_keep_media_succeeds_even_when_seerr_push_fails(sandbox, monkeypatch):
-    from app import main
+    from app import storage
 
-    monkeypatch.setattr(main, "push_media", lambda item: False)
+    monkeypatch.setattr(storage, "push_media", lambda item: False)
     sandbox.seed(queue_id="a", category="media", title="A show", media_type="tv")
 
     resp = sandbox.client.post("/api/items/a/move", json={"action": "keep"})
@@ -422,10 +425,10 @@ def test_keep_media_succeeds_even_when_seerr_push_fails(sandbox, monkeypatch):
 
 
 def test_keep_non_media_never_calls_seerr(sandbox, monkeypatch):
-    from app import main
+    from app import storage
 
     called = {"n": 0}
-    monkeypatch.setattr(main, "push_media", lambda item: called.__setitem__("n", called["n"] + 1))
+    monkeypatch.setattr(storage, "push_media", lambda item: called.__setitem__("n", called["n"] + 1))
     sandbox.seed(queue_id="a", category="idea", title="An idea")
 
     sandbox.client.post("/api/items/a/move", json={"action": "keep"})

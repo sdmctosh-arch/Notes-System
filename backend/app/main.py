@@ -26,11 +26,9 @@ from app.models import (
     VaultNoteSummary,
 )
 from app.search import search_items, search_vault
-from app.seerr import push_media
 from app.static_files import resolve_static_file
 from app.storage import InvalidMoveError, ItemNotFoundError
-from app.tandoor import push_recipe
-from app.vault import list_vault_notes, read_vault_note, write_vault_note
+from app.vault import list_vault_notes, read_vault_note
 
 app = FastAPI(title="Notes System API")
 
@@ -163,8 +161,7 @@ def update_item(queue_id: str, update: ItemUpdate, _=Depends(auth.require_auth))
 
 @app.post("/api/items/{queue_id}/move", response_model=QueueItem)
 def move_item(queue_id: str, move: MoveRequest, _=Depends(auth.require_auth)):
-    new_status = _MOVE_STATUS.get(move.action)
-    if new_status is None:
+    if move.action not in _MOVE_STATUS:
         raise HTTPException(
             status_code=400,
             detail=f"Unknown action '{move.action}'. Use archive, dismiss, or keep.",
@@ -172,13 +169,8 @@ def move_item(queue_id: str, move: MoveRequest, _=Depends(auth.require_auth)):
 
     try:
         if move.action == "keep":
-            item = storage.get_item(queue_id)
-            write_vault_note(VAULT_DIR, item)
-            if item.category == "recipe":
-                push_recipe(item)
-            elif item.category == "media":
-                push_media(item)
-        return storage.move_to_archived(queue_id, new_status)
+            return storage.keep_item(queue_id)
+        return storage.move_to_archived(queue_id, _MOVE_STATUS[move.action])
     except ItemNotFoundError:
         raise HTTPException(status_code=404, detail=f"No item {queue_id}")
     except InvalidMoveError as e:
