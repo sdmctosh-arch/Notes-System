@@ -576,7 +576,8 @@ Rules:
 
 Not in the original plan: a `media_info` item also gets a poster/backdrop
 image, looked up directly against the TMDB API (`Get-TmdbArt` in
-`Invoke-NoteProcessor-v2.ps1`) once enrichment has confirmed the title and
+`scripts\lib\Enrichment.ps1`, dot-sourced by `Invoke-NoteProcessor-v2.ps1`)
+once enrichment has confirmed the title and
 year - not via Gemini's own search tools, since TMDB gives back an
 addressable image URL for a specific title/year in one call rather than
 leaving the model to guess at one. Matches the same way `push_media`
@@ -593,8 +594,8 @@ is not a failure. Stored as plain URLs, hotlinked by the frontend (10.4) -
 nothing is downloaded or cached.
 
 Not in the original plan: a `game` item gets the same `structured.image`/
-`structured.backdrop` treatment, but from SteamGridDB (`Get-SteamGridDbArt`
-in `Invoke-NoteProcessor-v2.ps1`) instead of TMDB, which has no game
+`structured.backdrop` treatment, but from SteamGridDB (`Get-SteamGridDbArt`,
+also in `scripts\lib\Enrichment.ps1`) instead of TMDB, which has no game
 catalog - `image` comes from SteamGridDB's "grids" endpoint (tall cover
 art), `backdrop` from its "heroes" endpoint (wide banner). Configured the
 same optional, best-effort way via `$env:STEAMGRIDDB_API_KEY` or
@@ -917,8 +918,8 @@ in `queue\pending\`. Pending only, and only for a category the processor
 actually enriches (todo and grocery never are - see 9.2's `$TaskCategories`
 - the interface hides the button for those, and the processor drops the
 marker harmlessly if one shows up anyway). The processor's
-`Invoke-ReenrichRequests` (in `Invoke-NoteProcessor-v2.ps1`) scans for these
-markers on every run, redoes pass 2 with the item's current category/title/
+`Invoke-ReenrichRequests` (in `scripts\lib\Persistence.ps1`, dot-sourced by
+`Invoke-NoteProcessor-v2.ps1`) scans for these markers on every run, redoes pass 2 with the item's current category/title/
 body/url/media_type, and removes the marker either way. `media_type` is
 included alongside the rest so a re-enriched `media` item still gets its
 poster/backdrop or cover/hero lookup (9.2) - without it, neither
