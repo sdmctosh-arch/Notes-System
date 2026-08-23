@@ -4,8 +4,7 @@ import { setTheme } from '../theme';
 import { useDarkMode } from '../theme-hook';
 import { setSetting } from '../settings';
 import { useSettings } from '../settings-hook';
-import DesktopPageShell from '../components/DesktopPageShell';
-import Login from '../components/Login';
+import PageShell from '../components/PageShell';
 import { useIsDesktop } from '../useIsDesktop';
 
 function SectionLabel({ children }) {
@@ -110,10 +109,6 @@ export default function Settings() {
   const isDesktop = useIsDesktop();
   const [loggedOut, setLoggedOut] = useState(false);
 
-  if (loggedOut) {
-    return <Login onSuccess={() => setLoggedOut(false)} />;
-  }
-
   const content = (
     <>
       <div className="px-5 pt-7 pb-1 flex items-start justify-between gap-3">
@@ -161,13 +156,9 @@ export default function Settings() {
     </>
   );
 
-  if (isDesktop) {
-    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{content}</DesktopPageShell>;
-  }
-
   return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+    <PageShell loggedOut={loggedOut} onLoggedOut={() => setLoggedOut(true)} onLoginSuccess={() => setLoggedOut(false)}>
       {content}
-    </div>
+    </PageShell>
   );
 }

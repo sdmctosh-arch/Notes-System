@@ -20,6 +20,7 @@ import { isArchivedStatus, isNewItem, isStaleItem } from '../itemLabels';
 import { useDarkMode } from '../theme-hook';
 import { useSettings } from '../settings-hook';
 import Login from '../components/Login';
+import { ItemShell, BackLink } from '../components/ItemShell';
 
 function timeAgo(iso) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -348,10 +349,14 @@ export default function ItemDetail({ id: propId, embedded = false, onActioned })
   // new one. Matters most in the desktop two-pane Inbox, where clicking a
   // different row swaps `id` without navigating (no route change, no natural
   // remount) - but also covers the mobile route case for free.
-  return <ItemDetailInner key={id} id={id} embedded={embedded} onActioned={onActioned} />;
+  return <ItemDetailCore key={id} id={id} embedded={embedded} onActioned={onActioned} />;
 }
 
-function ItemDetailInner({ id, embedded, onActioned }) {
+// The deep module: data-fetching, status mutation, and per-category
+// rendering. Testable against its own interface (id/embedded/onActioned)
+// regardless of where it's mounted - the embedded-vs-standalone chrome
+// itself lives in ItemShell/BackLink, not here.
+function ItemDetailCore({ id, embedded, onActioned }) {
   const [item, setItem] = useState(null);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -412,11 +417,9 @@ function ItemDetailInner({ id, embedded, onActioned }) {
   // whichever category has its own art (matches the list row - InboxRow.jsx).
   const hasArt = item.category === 'media' || item.category === 'recipe';
 
-  const pageClass = embedded ? 'h-full flex flex-col' : 'max-w-md mx-auto min-h-dvh flex flex-col';
-
   if (editing) {
     return (
-      <div className={pageClass} style={{ background: 'var(--color-bg)' }}>
+      <ItemShell embedded={embedded}>
         <div className="px-5 pt-6 pb-2">
           <div className="text-[13px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
             Editing
@@ -430,24 +433,16 @@ function ItemDetailInner({ id, embedded, onActioned }) {
           }}
           onCancel={() => setEditing(false)}
         />
-      </div>
+      </ItemShell>
     );
   }
 
   return (
-    <div className={pageClass} style={{ background: 'var(--color-bg)' }}>
+    <ItemShell embedded={embedded}>
       <div className="px-5 pt-6 pb-2 flex items-center justify-between">
-        {embedded ? (
-          <div />
-        ) : (
-          <Link
-            to={isArchived ? '/archive' : '/'}
-            className="text-[13px] inline-flex items-center gap-1"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            &larr; {isArchived ? 'Archive' : 'Inbox'}
-          </Link>
-        )}
+        <BackLink embedded={embedded} to={isArchived ? '/archive' : '/'}>
+          {isArchived ? 'Archive' : 'Inbox'}
+        </BackLink>
         <div className="flex items-center gap-2">
           <ShareButton item={item} />
           {!isArchived && (
@@ -525,6 +520,6 @@ function ItemDetailInner({ id, embedded, onActioned }) {
 
       {!isArchived && <ActionBar queueId={item.queue_id} onDone={embedded ? onActioned : undefined} />}
       {canUnarchive && <UnarchiveBar queueId={item.queue_id} />}
-    </div>
+    </ItemShell>
   );
 }
