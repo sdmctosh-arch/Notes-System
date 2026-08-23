@@ -4,6 +4,24 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-23 - Deepen three more seams: keep_item, resolve_within, external-push adapter (#35)
+
+### Summary
+- `storage.keep_item()` now sequences vault-write, external push, and archive for the "keep" action - moved out of `main.py`'s `move_item` route handler, which is now a thin layer (candidate c2).
+- `app/paths.py`'s `resolve_within()` replaces the resolve()+containment check that was copy-pasted across `capture.py`, `vault.py`, `logs.py`, and `static_files.py` (candidate c5).
+- `app/external_push.py`'s `read_config()`/`best_effort()` share the config-or-skip and log-and-swallow shape between `tandoor.py` and `seerr.py`; each adapter keeps its own call sequence and exact log messages (candidate c6).
+
+Follows the three "Strong" candidates already shipped in #34, from the same 2026-08-23 architecture review.
+
+### Test plan
+- [x] `pytest -q` in `backend/`: 148 passed
+- [x] Updated the 4 `test_api.py` mocks that patched `main.push_recipe`/`push_media` to patch `storage.push_recipe`/`push_media` instead
+- [x] Added `test_paths.py`, `test_external_push.py`, and two direct tests on `storage.keep_item`
+- [x] Verified no unused imports left behind (`os` removed from `tandoor.py`/`seerr.py`)
+- [x] Updated `docs/PROJECT.md`'s two mentions of the old per-file resolve()+containment pattern to point at `resolve_within()`/`app/paths.py`
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-23 - Deepen three seams: pending-item guard, PageShell, ItemDetail chrome split (#34)
 
 ### Summary
