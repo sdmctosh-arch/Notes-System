@@ -4,6 +4,31 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-23 - Decompose Invoke-NoteProcessor-v2.ps1 by concern (candidate c7) (#36)
+
+### Summary
+- Splits the processor script (1,151 lines / 18 functions / 2 classes) into `scripts/lib/{Common,Classification,Enrichment,Persistence,RetryState}.ps1`, dot-sourced by the now-thin `Invoke-NoteProcessor-v2.ps1` orchestrator.
+- The last of the six architecture-review candidates from 2026-08-23 (Strong ones shipped in #34, Worth-exploring ones in #35), and the one explicitly marked Speculative - biggest lift, no test harness beyond the 26-capture corpus, and CLAUDE.md's §9.4 code guards had to survive byte-for-byte.
+- **Verbatim relocation**: every function/class/schema body moved character-for-character - confirmed with an AST-based diff comparing each definition's `Extent.Text` between the original committed file and its new location. All 20 original definitions plus both response schemas (`$ResponseSchema`, `$EnrichmentResponseSchema`) are byte-identical.
+- **One real refactor, not a move**: the two retry/failure `catch` blocks in the main loop were inline closures over loop-local variables. They're now `Resolve-TransientFailure`/`Resolve-PermanentFailure` in `RetryState.ps1`, taking explicit parameters (`-File`, `-Working`, `-AttemptsPath`, `-Stats`, `-ErrorRecord`) instead of closing over `$file`/`$working`/`$attemptsPath`/`$stats`/`$_` - every message string and file operation inside is unchanged, only the variable names.
+
+### Why this is safe
+- Validated up front (scratch test, not committed) that a `catch [ClassName]` clause resolves a class defined in a separately dot-sourced file, and that a function in one lib file can call a function in another and read the orchestrator's own script-scope params - under both `pwsh -File` and the `& $script` call-operator style `Test-Sandbox.ps1` actually uses.
+- §9.4's five guards (automation allowlist, URL validation, recipe/game image validation, content-hash dedupe, truncation) live inside `Write-QueueRow`, `Invoke-Enrichment`, and the main loop - none of that logic was rewritten, only whole-function relocation for the first two.
+
+### Test plan
+- [x] `pwsh` parses all six changed/new files cleanly (`Parser]::ParseFile`, no execution)
+- [x] AST diff: all 20 original functions/classes + both schemas are byte-for-byte identical in their new file
+- [x] Diff of the Setup+main-loop section (303 lines) against the original: only the two documented catch-block replacements differ
+- [x] `scripts/Test-Sandbox.ps1` (6 real captures, `-DryRun`, isolated to `$env:TEMP`) runs the full pipeline end-to-end with no errors - classification, enrichment, guards (truncation, ledger dedupe), and per-item enrich-failure handling all behave as before
+- [x] Unit-tested `Resolve-TransientFailure`/`Resolve-PermanentFailure` in isolation: deferred-under-limit, gives-up-at-limit (moved to `failed\` with `.reason.txt`, attempts file removed), and permanent-failure paths all pass
+- [x] `docs/PROJECT.md`'s three function-location references updated to point at the new `scripts/lib/` files
+
+### Deploy note
+`E:\notes-system\scripts` is a separate manual copy of this repo's `scripts/` - after merge, the deploy needs to copy the new `lib\` subfolder over too, not just the one file, for this to take effect on the real machine.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-23 - Deepen three more seams: keep_item, resolve_within, external-push adapter (#35)
 
 ### Summary
