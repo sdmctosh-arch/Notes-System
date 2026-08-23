@@ -15,12 +15,11 @@ guard capture.py, vault.py, and logs.py use for their own path parameters.
 
 from pathlib import Path
 
+from app.paths import resolve_within
+
 
 def resolve_static_file(static_dir: Path, full_path: str) -> Path | None:
-    target = (static_dir / full_path).resolve()
-    allowed_root = static_dir.resolve()
-    if allowed_root not in target.parents and target != allowed_root:
-        return None
-    if not target.is_file():
+    target = resolve_within(static_dir, full_path)
+    if target is None or not target.is_file():
         return None
     return target
