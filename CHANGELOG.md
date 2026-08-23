@@ -4,6 +4,25 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-23 - Deepen three seams: pending-item guard, PageShell, ItemDetail chrome split (#34)
+
+### Summary
+Implements the three "Strong" candidates from the architecture review:
+
+- **Centralize the item-mutation guard** — `storage.py`'s five pending-only mutations (`update_item`, `get_pending_item`, `add_chat_messages`, `set_pinned`, `request_reenrich`) now all route through one `_pending_item(queue_id)` seam instead of copy-pasting the same path+check, closing off the bug class that let a PATCH edit an archived item (fixed in 7464f3b).
+- **One `PageShell`** — the loggedOut/isDesktop/wrap-or-shell branch that `VaultNote`, `CaptureView`, `ProcessorLog`, `Vault`, `Archive`, `Search`, and `Settings` each hand-wired identically is now one component (`frontend/src/components/PageShell.jsx`); each page shrinks to its own content plus a few PageShell props.
+- **Split `ItemDetail`'s chrome from its core** — the embedded-vs-standalone page wrapper and back-link (`frontend/src/components/ItemShell.jsx`) are pulled out of the renamed `ItemDetailCore`, which stays the deep module (fetch/mutate/per-category render).
+
+Pure refactor — no behavior change.
+
+### Test plan
+- [x] `pytest` — 137 passed
+- [x] `vitest run` — 103 passed
+- [x] `vite build` — succeeds
+- [x] `oxlint` — no new warnings
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-22 - Add PWA support (installable, offline app shell) (#33)
 
 ### Summary
