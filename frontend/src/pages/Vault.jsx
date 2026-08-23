@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import Login from '../components/Login';
-import DesktopPageShell from '../components/DesktopPageShell';
+import PageShell from '../components/PageShell';
 import { useIsDesktop } from '../useIsDesktop';
 
 function timeAgo(iso) {
@@ -28,10 +27,9 @@ export default function Vault() {
 
   useEffect(load, []);
 
-  if (loggedOut || error?.status === 401) {
-    return <Login onSuccess={() => { setLoggedOut(false); load(); }} />;
-  }
-  if (error) {
+  const showLogin = loggedOut || error?.status === 401;
+
+  if (error && !showLogin) {
     return (
       <div className="p-6 text-sm" style={{ color: 'var(--color-dismiss-text)' }}>
         Couldn't load the vault: {error.message}
@@ -95,13 +93,13 @@ export default function Vault() {
     </>
   );
 
-  if (isDesktop) {
-    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{content}</DesktopPageShell>;
-  }
-
   return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+    <PageShell
+      loggedOut={showLogin}
+      onLoggedOut={() => setLoggedOut(true)}
+      onLoginSuccess={() => { setLoggedOut(false); load(); }}
+    >
       {content}
-    </div>
+    </PageShell>
   );
 }

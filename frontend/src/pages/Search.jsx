@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import CategoryBadge from '../components/CategoryBadge';
 import { categoryLabel } from '../categories';
-import Login from '../components/Login';
-import DesktopPageShell from '../components/DesktopPageShell';
+import PageShell from '../components/PageShell';
 import { useIsDesktop } from '../useIsDesktop';
 
 const LOCATION_LABEL = { inbox: 'Inbox', archive: 'Archive' };
@@ -35,10 +34,6 @@ export default function Search() {
       clearTimeout(timer);
     };
   }, [query]);
-
-  if (loggedOut || error?.status === 401) {
-    return <Login onSuccess={() => { setLoggedOut(false); setError(null); }} />;
-  }
 
   const content = (
     <>
@@ -132,13 +127,13 @@ export default function Search() {
     </>
   );
 
-  if (isDesktop) {
-    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{content}</DesktopPageShell>;
-  }
-
   return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+    <PageShell
+      loggedOut={loggedOut || error?.status === 401}
+      onLoggedOut={() => setLoggedOut(true)}
+      onLoginSuccess={() => { setLoggedOut(false); setError(null); }}
+    >
       {content}
-    </div>
+    </PageShell>
   );
 }

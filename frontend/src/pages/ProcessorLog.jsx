@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import Login from '../components/Login';
-import DesktopPageShell from '../components/DesktopPageShell';
+import PageShell from '../components/PageShell';
 import { useIsDesktop } from '../useIsDesktop';
 
 // The processor appends chronologically, so the newest activity is always
@@ -43,17 +42,6 @@ export default function ProcessorLog() {
   }, [date]);
 
   useEffect(loadContent, [loadContent]);
-
-  if (loggedOut || error?.status === 401) {
-    return (
-      <Login
-        onSuccess={() => {
-          setLoggedOut(false);
-          loadDates();
-        }}
-      />
-    );
-  }
 
   const body = (
     <>
@@ -115,13 +103,16 @@ export default function ProcessorLog() {
     </>
   );
 
-  if (isDesktop) {
-    return <DesktopPageShell onLoggedOut={() => setLoggedOut(true)}>{body}</DesktopPageShell>;
-  }
-
   return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col" style={{ background: 'var(--color-bg)' }}>
+    <PageShell
+      loggedOut={loggedOut || error?.status === 401}
+      onLoggedOut={() => setLoggedOut(true)}
+      onLoginSuccess={() => {
+        setLoggedOut(false);
+        loadDates();
+      }}
+    >
       {body}
-    </div>
+    </PageShell>
   );
 }

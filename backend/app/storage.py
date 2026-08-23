@@ -102,6 +102,23 @@ def get_item(queue_id: str) -> QueueItem:
     return _read_item(path)
 
 
+def _pending_item(queue_id: str) -> tuple[Path, QueueItem]:
+    # The one seam every pending-only mutation (update/chat/pin/reenrich)
+    # goes through - once an item is archived/filed/dismissed the interface
+    # treats it as read-only (PROJECT.md 10.4's Archive view), and a filed
+    # item in particular may already have a real vault note (and a
+    # Tandoor/Seerr push) built from its current title/category, which an
+    # edit here can't retroactively fix. A prior copy of this check used
+    # _find_item_path (which also matches archived) and let a PATCH edit an
+    # archived item (fixed in 7464f3b) - route every mutation through here
+    # instead of re-deriving the pending path so that bug class can't recur.
+    _validate_queue_id(queue_id)
+    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
+    if not path.is_file():
+        raise ItemNotFoundError(queue_id)
+    return path, _read_item(path)
+
+
 def update_item(
     queue_id: str,
     *,
@@ -109,16 +126,7 @@ def update_item(
     title: str | None = None,
     body: str | None = None,
 ) -> QueueItem:
-    # Pending-only, the same as chat/pin/reenrich - once an item is
-    # archived/filed/dismissed the interface treats it as read-only
-    # (PROJECT.md 10.4's Archive view). A filed item in particular may
-    # already have a real vault note (and a Tandoor/Seerr push) built from
-    # its current title/category, which an edit here can't retroactively fix.
-    _validate_queue_id(queue_id)
-    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
-    if not path.is_file():
-        raise ItemNotFoundError(queue_id)
-    item = _read_item(path)
+    path, item = _pending_item(queue_id)
     updated = item.model_copy(
         update={
             k: v
@@ -131,36 +139,20 @@ def update_item(
 
 
 def get_pending_item(queue_id: str) -> QueueItem:
-    # Chat is deliberately pending-only, the same way move_to_archived's
-    # source side is - once an item is archived/filed/dismissed the
-    # interface treats it as read-only (PROJECT.md 10.4's Archive view),
-    # and chat is a mutation like any other.
-    _validate_queue_id(queue_id)
-    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
-    if not path.is_file():
-        raise ItemNotFoundError(queue_id)
-    return _read_item(path)
+    # Chat is a mutation like any other - see _pending_item.
+    _, item = _pending_item(queue_id)
+    return item
 
 
 def add_chat_messages(queue_id: str, messages: list[ChatMessage]) -> QueueItem:
-    _validate_queue_id(queue_id)
-    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
-    if not path.is_file():
-        raise ItemNotFoundError(queue_id)
-    item = _read_item(path)
+    path, item = _pending_item(queue_id)
     updated = item.model_copy(update={"chat": item.chat + messages})
     _write_item_atomic(path, updated)
     return updated
 
 
 def set_pinned(queue_id: str, pinned: bool) -> QueueItem:
-    # Pending-only, the same as chat - once an item is archived/filed/
-    # dismissed the interface treats it as read-only.
-    _validate_queue_id(queue_id)
-    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
-    if not path.is_file():
-        raise ItemNotFoundError(queue_id)
-    item = _read_item(path)
+    path, item = _pending_item(queue_id)
     updated = item.model_copy(update={"pinned": pinned})
     _write_item_atomic(path, updated)
     return updated
@@ -203,11 +195,8 @@ def request_reenrich(queue_id: str) -> None:
     # it only writes a marker file. The processor picks it up on its next
     # run, redoes pass 2, and removes the marker either way (see
     # Invoke-ReenrichRequests in Invoke-NoteProcessor-v2.ps1). Pending-only,
-    # the same as chat and set_pinned - an archived item is read-only.
-    _validate_queue_id(queue_id)
-    path = QUEUE_PENDING_DIR / f"{queue_id}.json"
-    if not path.is_file():
-        raise ItemNotFoundError(queue_id)
+    # the same as chat and set_pinned - see _pending_item.
+    _pending_item(queue_id)
     marker = QUEUE_PENDING_DIR / f"{queue_id}.reenrich"
     marker.touch()
 
