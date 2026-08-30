@@ -96,7 +96,7 @@ Do not add a port forward for the web interface.
 | Service | Use |
 |---|---|
 | Gemini API, `generateContent` | Classification |
-| Gemini API, Interactions endpoint | Enrichment with tools |
+| Gemini API, `generateContent` with grounding tools | Enrichment |
 | TMDB API, `/search/movie`, `/search/tv` | Poster/backdrop image lookup for a `movie`/`tv` `media` item. Optional, best-effort like Tandoor/Seerr below - see 9.2 |
 | SteamGridDB API | Cover/hero image lookup for a `game` `media` item - TMDB's counterpart for the one media type it doesn't cover. Optional, best-effort, same posture - see 9.2 |
 
@@ -156,7 +156,9 @@ stay processor-only and file-based, exactly as described above.
 **One deliberate exception: item chat (10.4).** A live follow-up
 conversation needs a synchronous reply, which the processor's every-5-minute
 file-based pipeline can't give. The interface calls the Interactions API
-directly for this one feature, using its own `GEMINI_API_KEY` (same key
+directly for this one feature (this endpoint is now sunset - chat needs the
+same move to `generateContent` that enrichment already made, see 9.2), using
+its own `GEMINI_API_KEY` (same key
 material as `gemini.key.xml`, just also given to this container as a plain
 env var - see `.env.example` - since DPAPI only decrypts for one Windows
 user on one machine, not a Linux container). See `backend/app/gemini_chat.py`.
@@ -543,11 +545,19 @@ text.
 
 | Item | Value |
 |---|---|
-| Endpoint | `POST https://generativelanguage.googleapis.com/v1beta/interactions` |
-| Model | A Gemini 3 series model that supports tools |
+| Endpoint | `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` |
+| Header | `x-goog-api-key` |
+| Model | `gemini-3.5-flash` (any Gemini 3 series model that supports tools) |
 | Tools | `google_search`, `url_context` |
-| `store` | `false` |
-| Output | `response_format` with a JSON schema |
+| `responseMimeType` | `application/json` |
+| `responseSchema` | Present. See the script |
+
+Enrichment used the Interactions API (`/v1beta/interactions`) until that
+endpoint was sunset in June 2026 - it now rejects every call with a 400 that
+misreports itself as a safety block, or drops the connection. Enrichment
+moved to `generateContent`, which takes the same `google_search` and
+`url_context` grounding tools alongside a forced JSON `responseSchema`. The
+prompt is in `enrich-prompt.md`. Do not put the prompt in the script.
 
 Enrichment runs for each item. Enrichment does not run for every category.
 

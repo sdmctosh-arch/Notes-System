@@ -69,11 +69,6 @@ $ProcessorVersion = '0.2'
 $SettleSeconds    = 15
 $StaleLockMinutes = 30
 
-# Sent on Interactions API calls. The API's May 2026 schema migration made
-# this a no-op after the June 8 2026 sunset, but it costs nothing to send and
-# documents which schema this script was written against.
-$InteractionsApiRevision = '2026-05-20'
-
 # --- Routing policy ----------------------------------------------------------
 
 # todo and grocery are tasks: acted on, not researched. Every other category

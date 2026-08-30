@@ -7,14 +7,15 @@ reply, which the processor's file-based, every-5-minutes pipeline can't
 give. Enrichment and classification stay processor-only and file-based
 exactly as before; only chat calls Gemini directly, from here.
 
-The request/response shape mirrors scripts/Invoke-NoteProcessor-v2.ps1's
-Invoke-Enrichment function exactly (endpoint, headers, response parsing) -
-that shape was verified against the real Interactions API early in this
-project, so chat reuses it rather than guessing at a different one. The
-one real difference: enrichment's `input` is a one-shot description of the
-item, and it uses response_format to force structured JSON out. Chat has
-no fixed schema to fill - `input` is the whole conversation transcript so
-far plus the new message, and the reply is just text.
+This still uses the Interactions API (/v1beta/interactions). That endpoint
+was sunset in June 2026 and now fails every call, so chat is currently
+broken and needs the same move to generateContent that Invoke-Enrichment
+already made (see scripts/lib/Enrichment.ps1 and PROJECT.md 9.2). Chat's
+migration is more involved than enrichment's was: the Interactions API kept
+conversation state server-side, so generateContent means sending the whole
+transcript as `contents` turns each call. Until then, `input` below is the
+whole conversation transcript so far plus the new message, and the reply is
+just text (chat has no fixed schema to fill, unlike enrichment).
 """
 
 import os

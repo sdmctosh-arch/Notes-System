@@ -210,45 +210,60 @@ function Invoke-Enrichment {
     )
     if ($url -and (Test-CleanUrl $url)) { $lines += "URL: $url" }
 
+    # generateContent, not the Interactions API. The Interactions endpoint
+    # (/v1beta/interactions) was sunset in June 2026: it now rejects every
+    # call with a 400 that misreports itself as a safety block, or drops the
+    # connection. generateContent accepts the same google_search + url_context
+    # grounding tools alongside a forced JSON responseSchema - the one
+    # combination enrichment needs - verified against the live API.
     $payload = [ordered]@{
-        model              = $EnrichModel
-        input              = ($lines -join "`n")
-        system_instruction = $script:EnrichSystemPrompt
-        tools              = @(@{ type = 'google_search' }, @{ type = 'url_context' })
-        store              = $false
-        # On Gemini 3 models this budget is shared between thinking and
-        # output tokens. Left unset, a long conversion (a full recipe) can
-        # exhaust it on thinking alone and come back status=incomplete with
-        # no usable text. Confirmed against the live API: a dense, long
-        # recipe occasionally runs past 22k output tokens even with the
-        # required-field and detail-brevity fixes in place - 32000 leaves
-        # real headroom. A run that still hits the cap comes back
-        # enrich_failed rather than corrupt data; the capture itself is
-        # never lost.
-        generation_config  = @{ max_output_tokens = 32000 }
-        response_format    = [ordered]@{
-            type      = 'text'
-            mime_type = 'application/json'
-            schema    = $EnrichmentResponseSchema
+        systemInstruction = @{ parts = @(@{ text = $script:EnrichSystemPrompt }) }
+        contents          = @(@{ role = 'user'; parts = @(@{ text = ($lines -join "`n") }) })
+        tools             = @(@{ google_search = @{} }, @{ url_context = @{} })
+        # The input is the user's own capture and a page they chose to save.
+        # The default safety filters fire on ordinary reference links (a
+        # hardware blog post has come back finishReason=SAFETY), so turn the
+        # four configurable categories off. This does not touch the
+        # non-configurable grounding/recitation checks, which can still stop
+        # a response - that surfaces as finishReason=SAFETY/RECITATION below
+        # and the item files enrich_failed, same as any other enrichment miss.
+        safetySettings    = @(
+            @{ category = 'HARM_CATEGORY_HARASSMENT';        threshold = 'BLOCK_NONE' }
+            @{ category = 'HARM_CATEGORY_HATE_SPEECH';        threshold = 'BLOCK_NONE' }
+            @{ category = 'HARM_CATEGORY_SEXUALLY_EXPLICIT';  threshold = 'BLOCK_NONE' }
+            @{ category = 'HARM_CATEGORY_DANGEROUS_CONTENT';  threshold = 'BLOCK_NONE' }
+        )
+        generationConfig  = [ordered]@{
+            # This budget is shared between thinking and output tokens on
+            # Gemini 3 models. Left lower, a long conversion (a full recipe)
+            # can exhaust it on thinking alone and come back with a non-STOP
+            # finishReason and no usable text. Confirmed against the live
+            # API: a dense, long recipe occasionally runs past 22k output
+            # tokens even with the required-field and detail-brevity fixes
+            # in place - 32000 leaves real headroom. A run that still hits
+            # the cap comes back enrich_failed rather than corrupt data; the
+            # capture itself is never lost.
+            maxOutputTokens  = 32000
+            responseMimeType = 'application/json'
+            responseSchema   = $EnrichmentResponseSchema
         }
     } | ConvertTo-Json -Depth 20
 
     # Overridable so a re-enrich request can be exercised against a local
-    # stub in a sandbox that can't reach the real API (mirrors the
-    # interface's own GEMINI_INTERACTIONS_URL override in gemini_chat.py) -
-    # the default is the real endpoint.
-    $uri = if ($env:GEMINI_INTERACTIONS_URL) { $env:GEMINI_INTERACTIONS_URL } else { 'https://generativelanguage.googleapis.com/v1beta/interactions' }
+    # stub in a sandbox that can't reach the real API - the default is the
+    # real endpoint.
+    $uri = if ($env:GEMINI_ENRICH_URL) {
+        $env:GEMINI_ENRICH_URL
+    } else {
+        "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent" -f $EnrichModel
+    }
 
     $attempt = 0
     $resp = $null
     while ($true) {
         try {
             $resp = Invoke-RestMethod -Uri $uri -Method Post `
-                -Headers @{
-                    'x-goog-api-key' = $script:ApiKey
-                    'content-type'   = 'application/json'
-                    'Api-Revision'   = $InteractionsApiRevision
-                } `
+                -Headers @{ 'x-goog-api-key' = $script:ApiKey; 'content-type' = 'application/json' } `
                 -Body $payload
             break
         }
@@ -268,19 +283,24 @@ function Invoke-Enrichment {
         }
     }
 
-    if ($resp.PSObject.Properties.Name -contains 'status' -and $resp.status -and $resp.status -ne 'completed') {
-        throw [EnrichmentApiError]::new("interaction status=$($resp.status)")
+    $candidate = $resp.candidates | Select-Object -First 1
+    if ($null -eq $candidate) { throw [EnrichmentApiError]::new('No candidate returned') }
+
+    # google_search grounding can trip a SAFETY or RECITATION finishReason on
+    # an otherwise fine item; MAX_TOKENS means the budget above was still too
+    # low. Each of them means no usable JSON - fail the item (which queues it
+    # enrich_failed) rather than parse a partial response.
+    $finish = if ($candidate.PSObject.Properties.Name -contains 'finishReason') { $candidate.finishReason } else { 'UNKNOWN' }
+    if ($finish -notin @('STOP','UNKNOWN')) {
+        throw [EnrichmentApiError]::new("finishReason=$finish")
     }
 
-    $modelStep = $resp.steps | Where-Object { $_.type -eq 'model_output' } | Select-Object -Last 1
-    if ($null -eq $modelStep) { throw [EnrichmentApiError]::new('No model_output step returned') }
-
-    $textPart = $modelStep.content | Where-Object { $_.type -eq 'text' } | Select-Object -First 1
-    if ($null -eq $textPart -or [string]::IsNullOrWhiteSpace($textPart.text)) {
-        throw [EnrichmentApiError]::new('model_output step has no text content')
+    $text = ($candidate.content.parts | ForEach-Object { $_.text }) -join ''
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        throw [EnrichmentApiError]::new('response has no text content')
     }
 
-    $parsed = $textPart.text.Trim() | ConvertFrom-Json
+    $parsed = $text.Trim() | ConvertFrom-Json
 
     # Guard that doesn't depend on model behaviour: structured only comes
     # from the field matching the declared kind. Whatever landed in the
