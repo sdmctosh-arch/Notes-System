@@ -4,6 +4,43 @@ Every entry here corresponds to one merged pull request into `main`. New
 entries are appended automatically by `.github/workflows/changelog.yml` when
 a PR merges - see that workflow for how.
 
+## 2026-08-30 - Migrate enrichment off the sunset Interactions API to generateContent (#37)
+
+### Why
+
+`POST /v1beta/interactions` (the Interactions API) was sunset in June 2026. It now rejects every enrichment call with an HTTP 400 that misreports itself as a *"safety violations (harmful content)"* block, or drops the connection mid-response. Result: **every captured note since ~2026-08-28 has filed as `enrich_failed`** with no summary, citations, or media art.
+
+A separate cause — a lapsed billing credit — produced an HTTP 429 outage stacked on top of this from 2026-08-28. That half is already resolved (billing restored); classification (`generateContent`, no tools) was never affected. This PR fixes the enrichment half.
+
+Verified against the live API: `generateContent` accepts the same `google_search` + `url_context` grounding tools **alongside** a forced JSON `responseSchema` — the one combination enrichment needs.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `scripts/lib/Enrichment.ps1` | `Invoke-Enrichment` rewritten for `generateContent`: `systemInstruction`/`contents`, tools as `{google_search:{}}`/`{url_context:{}}`, `generationConfig.responseSchema`. Response parsing moves from `steps`/`model_output` to `candidates[0].content.parts` with a `finishReason` guard (mirrors `Invoke-Classifier`). `safetySettings` set to `BLOCK_NONE` on the four configurable categories — the input is the user's own capture plus a page they chose to save. Sandbox override env var `GEMINI_INTERACTIONS_URL` → `GEMINI_ENRICH_URL`. |
+| `scripts/Invoke-NoteProcessor-v2.ps1` | Removed the now-unused `$InteractionsApiRevision`. |
+| `docs/PROJECT.md` | §2.4 and §9.2 updated to the new endpoint/config with rationale; §10.4 flags that item-chat still uses the dead endpoint. |
+| `backend/app/gemini_chat.py` | Docstring only — corrected the stale "mirrors `Invoke-Enrichment` exactly" claim. |
+
+### Out of scope
+
+`backend/app/gemini_chat.py` (the interface's item-chat feature) uses the same sunset endpoint and is **also broken**. Its migration is more involved — the Interactions API kept conversation state server-side, so `generateContent` means replaying the whole transcript as `contents` turns each call — and belongs in its own PR with its own pytest coverage. Flagged in the docstring and PROJECT.md §10.4.
+
+### Testing
+
+Ran the processor against `test-corpus/` captures via a sandbox (live API, sandboxed writes):
+
+- **`lookup` → `answer`**: full grounded enrichment — summary, markdown detail, 3 real citations from `google_search`. ✅
+- **`reference` (bare URL) → `page_summary`**: came back `finishReason=SAFETY` once and hit transient connection drops on other attempts, filing `enrich_failed`. The `reference`-with-URL class **already failed the same way on the Interactions API** (HTTP 400 "safety violations" in the 2026-08-21/22/27 processor logs and in direct probes), so this is not a regression. `safetySettings: BLOCK_NONE` covers the configurable filters; the non-configurable grounding/recitation check can still stop a response, and those items stay re-enrichable from the interface.
+- All four changed files parse clean.
+
+### Deploy note
+
+`E:\notes-system\scripts` is a separate copy — redeploy `scripts/` by hand after merge. The three notes currently sitting `enrich_failed` (`2026-08-28-13-54-07-pm`, `2026-08-28-18-43-48-pm`, `2026-08-29-06-32-11-am`) can then be filled in with the interface's re-enrich action.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## 2026-08-23 - Decompose Invoke-NoteProcessor-v2.ps1 by concern (candidate c7) (#36)
 
 ### Summary
